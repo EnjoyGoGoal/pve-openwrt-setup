@@ -24,25 +24,26 @@ select_storage() {
     echo "可用存储池："
     # 列出存储池名称和类型
     for i in "${!STS[@]}"; do
-        STORAGE_NAME=$(echo ${STS[$i]} | awk '{print $1}')
-        STORAGE_TYPE=$(echo ${STS[$i]} | awk '{print $2}')
+        STORAGE_NAME=$(echo ${STS[$i]} | awk '{print $1}' | xargs)  # 清除多余的空格
+        STORAGE_TYPE=$(echo ${STS[$i]} | awk '{print $2}' | xargs)  # 清除多余的空格
         echo " $((i+1))). ${STORAGE_NAME} (${STORAGE_TYPE})"
     done
 
     read -p "选择存储池编号 [默认1]: " sc
     sc=${sc:-1}
-    STORAGE_NAME=$(echo ${STS[$((sc-1))]} | awk '{print $1}')
-    STORAGE_TYPE=$(echo ${STS[$((sc-1))]} | awk '{print $2}')
+    STORAGE_NAME=$(echo ${STS[$((sc-1))]} | awk '{print $1}' | xargs)  # 清除多余的空格
+    STORAGE_TYPE=$(echo ${STS[$((sc-1))]} | awk '{print $2}' | xargs)  # 清除多余的空格
     
     echo "已选择存储池：$STORAGE_NAME ($STORAGE_TYPE)"
     
-    if [ "$STORAGE_TYPE" == "dir" ]; then
-        echo "正在使用本地存储池：/var/lib/vz"
-    elif [ "$STORAGE_TYPE" == "esxi" ]; then
-        echo "正在使用与 VMware ESXi 服务器连接的存储池 esxi"
+    # 确认存储池类型，针对 dir 和 esxi 做特殊处理
+    if [[ "$STORAGE_TYPE" == "dir" ]]; then
+        echo "正在使用本地存储池：$STORAGE_NAME"
+    elif [[ "$STORAGE_TYPE" == "esxi" ]]; then
+        echo "正在使用与 VMware ESXi 服务器连接的存储池：$STORAGE_NAME"
         # 这里可以添加额外的处理逻辑，针对 ESXi 存储池进行操作
     else
-        echo "未知存储池类型，退出。"
+        echo "未知存储池类型：$STORAGE_TYPE，退出。"
         exit 1
     fi
 }
