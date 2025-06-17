@@ -21,3 +21,10 @@ cd openwrt-lxc-proxmox
 或终端运行
 curl -O https://raw.githubusercontent.com/EnjoyGoGoal/pve-openwrt-setup/main/install-openwrt-lxc.sh
 bash ./install-openwrt-lxc.sh
+
+启动openwrt后更改IP
+然后更新软件
+bash
+opkg update
+opkg list-upgradable | cut -f 1 -d ' ' | xargs opkg upgrade
+opkg install luci-i18n-base-zh-cn
