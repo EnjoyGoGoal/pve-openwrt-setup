@@ -4,8 +4,27 @@ set -e
 echo "🛠️ 正在为 OpenWrt 24.10.1 安装 Tailscale、AdGuardHome、ZeroTier..."
 
 # 更新软件源
-echo "🔄 更新软件源并安装基础依赖..."
-opkg update
+#echo "🔄 更新软件源并安装基础依赖..."
+#opkg update
+#opkg install curl wget ca-bundle ca-certificates iptables ip6tables kmod-tun kmod-ipt-nat kmod-ipt6tables kmod-ipt-core base-files bash libustream-mbedtls
+
+# 安装 Tailscale
+echo "🚀 安装 Tailscale..."
+opkg install tailscale tailscaled
+/etc/init.d/tailscaled enable
+/etc/init.d/tailscaled start
+
+echo "✅ Tailscale 安装完成！请手动运行以下命令进行登录："
+echo "  tailscale up --accept-routes --advertise-exit-node"
+
+# 安装 ZeroTier
+echo "🌐 安装 ZeroTier..."
+opkg install zerotier
+/etc/init.d/zerotier enable
+/etc/init.d/zerotier start
+
+echo "✅ ZeroTier 启动完成。请登录 https://my.zerotier.com 绑定设备到你的网络。"
+
 # 安装 AdGuardHome
 echo "🧰 准备安装 AdGuardHome..."
 
