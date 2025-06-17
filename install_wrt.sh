@@ -14,6 +14,8 @@ get_latest_version() {
 # 列出存储池，并确保正确显示存储池类型
 select_storage() {
     echo "🔍 检测存储池..."
+    
+    # 获取存储池配置
     mapfile -t STS < <(grep -E '^[[:alnum:]-]+' /etc/pve/storage.cfg | awk '{print $1, $2}')
 
     if [ ${#STS[@]} -eq 0 ]; then
@@ -26,8 +28,7 @@ select_storage() {
     for i in "${!STS[@]}"; do
         STORAGE_NAME=$(echo ${STS[$i]} | awk '{print $1}' | xargs)  # 清除多余的空格
         STORAGE_TYPE=$(echo ${STS[$i]} | awk '{print $2}' | xargs)  # 清除多余的空格
-        # 去除括号中的内容，处理存储池名称和类型
-        STORAGE_NAME=$(echo $STORAGE_NAME | sed 's/.*(\(.*\))/\1/')
+        # 输出存储池信息
         echo " $((i+1))). ${STORAGE_NAME} (${STORAGE_TYPE})"
     done
 
@@ -39,7 +40,7 @@ select_storage() {
     
     echo "已选择存储池：$STORAGE_NAME ($STORAGE_TYPE)"
     
-    # 确认存储池类型，针对 dir 和 esxi 做特殊处理
+    # 存储池类型处理逻辑
     case "$STORAGE_TYPE" in
         dir)
             if [[ "$STORAGE_NAME" == "local" ]]; then
