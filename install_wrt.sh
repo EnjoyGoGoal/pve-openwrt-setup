@@ -1,109 +1,124 @@
 #!/bin/bash
+set -euo pipefail
 
-# OpenWrt/ImmortalWrt 自动安装脚本 for Proxmox VE 8.4.1
-# 支持选择 LXC 或 VM，自动检测版本并下载镜像
+# ════════════════════════════
+#  函数：获取最新版本号
+# ════════════════════════════
+get_latest_version() {
+    echo "🔍 获取 OpenWrt 最新版本号..."
+    OPENWRT_VERSION=$(curl -s https://downloads.openwrt.org/releases/ \
+      | grep -Po 'href="\K\d+\.\d+\.\d+(?=/")' \
+      | sort -V | tail -1)
+    echo "→ OpenWrt: $OPENWRT_VERSION"
 
-# 设置默认值
-LXC_START_ID=1001
-VM_START_ID=2001
-
-# 输出颜色定义
-GREEN="\033[1;32m"
-YELLOW="\033[1;33m"
-RED="\033[1;31m"
-RESET="\033[0m"
-
-# 检查依赖
-command -v curl >/dev/null 2>&1 || { echo -e "${RED}请先安装 curl${RESET}"; exit 1; }
-command -v wget >/dev/null 2>&1 || { echo -e "${RED}请先安装 wget${RESET}"; exit 1; }
-
-# 获取最新版本函数
-get_latest_openwrt_version() {
-    echo "获取 OpenWrt 最新版本号..."
-    curl -s https://downloads.openwrt.org/releases/ | grep -oE '[0-9]+\.[0-9]+\.[0-9]+/' | tr -d '/' | sort -Vr | head -n1
+    echo "🔍 获取 ImmortalWrt 最新版本号..."
+    IMMORTALWRT_VERSION=$(curl -s https://downloads.immortalwrt.org/releases/ \
+      | grep -Po 'href="\K\d+\.\d+\.\d+(?=/")' \
+      | sort -V | tail -1)
+    echo "→ ImmortalWrt: $IMMORTALWRT_VERSION"
 }
 
-get_latest_immortalwrt_version() {
-    echo "获取 ImmortalWrt 最新版本号..."
-    curl -s https://downloads.immortalwrt.org/releases/ | grep -oE '[0-9]+\.[0-9]+\.[0-9]+/' | tr -d '/' | sort -Vr | head -n1
+# ════════════════════════════
+#  函数：选择存储池
+# ════════════════════════════
+select_storage() {
+    echo "请选择存储池："
+    echo "1) local-lvm"
+    echo "2) local"
+    echo "3) 其它"
+    read -p "存储池编号 [1]: " sc; sc=${sc:-1}
+    case "$sc" in
+        1) STORAGE="local-lvm" ;;
+        2) STORAGE="local"    ;;
+        3) read -p "请输入自定义存储池名称: " STORAGE ;;
+        *) echo "无效选择" && exit 1 ;;
+    esac
+    echo "→ 存储池: $STORAGE"
 }
 
-# 选择系统
-echo -e "选择要安装的操作系统："
-echo "1) OpenWrt"
-echo "2) ImmortalWrt"
-read -p "请选择 [1/2]: " OS_CHOICE
+# ════════════════════════════
+#  函数：下载镜像
+# ════════════════════════════
+download_image() {
+    local OS=$1 VER=$2 URL
+    if [ "$OS" = "OpenWrt" ]; then
+        URL="https://downloads.openwrt.org/releases/${VER}/targets/x86/64/openwrt-${VER}-x86-64-rootfs.tar.gz"
+    else
+        URL="https://downloads.immortalwrt.org/releases/${VER}/targets/x86/64/immortalwrt-${VER}-x86-64-rootfs.tar.gz"
+    fi
+    echo "🔍 下载 ${OS} 镜像：$URL"
+    mkdir -p /var/lib/vz/template/cache
+    wget -q -O /var/lib/vz/template/cache/${OS}-${VER}-rootfs.tar.gz "$URL"
+}
 
-if [[ $OS_CHOICE == "2" ]]; then
-    OS_NAME="ImmortalWrt"
-    VERSION=$(get_latest_immortalwrt_version)
-    BASE_URL="https://downloads.immortalwrt.org/releases"
-else
-    OS_NAME="OpenWrt"
-    VERSION=$(get_latest_openwrt_version)
-    BASE_URL="https://downloads.openwrt.org/releases"
-fi
+# ════════════════════════════
+#  函数：创建并启动 LXC
+# ════════════════════════════
+create_lxc() {
+    local ID=$1 OS=$2 VER=$3
+    local TMP="/var/lib/vz/template/cache/${OS}-${VER}-rootfs.tar.gz"
+    echo "🚀 创建 LXC 容器 ID=$ID"
+    pct create $ID "$TMP" \
+      --hostname "${OS,,}-lxc" \
+      --cores 2 --memory 4096 --swap 0 \
+      --rootfs "${STORAGE}:2" \
+      --net0 name=eth0,bridge=vmbr0,ip=dhcp \
+      --ostype unmanaged --arch amd64 \
+      --features nesting=1 --unprivileged 0
+    pct set $ID --onboot 1
+    pct start $ID
+    echo "✅ 容器已启动 (ID=$ID)"
+}
 
-# 选择容器类型
-echo -e "\n选择虚拟机类型："
-echo "1) LXC"
-echo "2) VM"
-read -p "请选择 [1/2]: " VM_TYPE
+# ════════════════════════════
+#  函数：创建并启动 VM
+# ════════════════════════════
+create_vm() {
+    local ID=$1 OS=$2 VER=$3
+    local TMP="/var/lib/vz/template/cache/${OS}-${VER}-x86-64-combined-ext4.img.gz"
+    echo "🚀 创建 VM 虚拟机 ID=$ID"
+    qm create $ID --name "${OS,,}-vm" --memory 4096 --cores 2 --net0 virtio,bridge=vmbr0
+    qm importdisk $ID "$TMP" ${STORAGE}
+    qm set $ID --scsihw virtio-scsi-pci --scsi0 ${STORAGE}:vm-${ID}-disk-0
+    qm set $ID --boot order=scsi0 --ostype l26 --serial0 socket --vga serial0
+    qm start $ID
+    echo "✅ 虚拟机已启动 (ID=$ID)"
+}
 
-if [[ $VM_TYPE == "2" ]]; then
-    TYPE="VM"
-    VMID=$VM_START_ID
-    IMAGE_NAME="${OS_NAME,,}-${VERSION}-x86-64-combined-ext4.img.gz"
-    IMAGE_URL="${BASE_URL}/${VERSION}/targets/x86/64/${IMAGE_NAME}"
-else
-    TYPE="LXC"
-    VMID=$LXC_START_ID
-    IMAGE_NAME="${OS_NAME,,}-${VERSION}-x86-64-rootfs.tar.gz"
-    IMAGE_URL="${BASE_URL}/${VERSION}/targets/x86/64/${IMAGE_NAME}"
-fi
+# ════════════════════════════
+#  主流程
+# ════════════════════════════
+main() {
+    get_latest_version
 
-# 选择存储池
-echo -e "\n🔍 请选择存储池："
-echo "1) local-lvm"
-echo "2) local"
-echo "3) 其它"
-read -p "选择存储池编号 [默认1]: " STORAGE_CHOICE
-case $STORAGE_CHOICE in
-    2) STORAGE="local";;
-    3) read -p "请输入自定义存储池名称: " STORAGE;;
-    *) STORAGE="local-lvm";;
-esac
+    echo "选择系统：1) OpenWrt  2) ImmortalWrt"
+    read -p "[1]: " ch; ch=${ch:-1}
+    if [ "$ch" = "2" ]; then
+        OS="ImmortalWrt"; VER=$IMMORTALWRT_VERSION
+    else
+        OS="OpenWrt";     VER=$OPENWRT_VERSION
+    fi
 
-# 下载镜像
-CACHE_DIR="/var/lib/vz/template/cache"
-mkdir -p "$CACHE_DIR"
-echo -e "\n🔍 下载 ${OS_NAME} 镜像：${IMAGE_URL}"
-wget -O "${CACHE_DIR}/${IMAGE_NAME}" "$IMAGE_URL" || { echo -e "${RED}镜像下载失败！${RESET}"; exit 1; }
+    select_storage
+    download_image $OS $VER
 
-# 输入主机名
-read -p "请输入主机名 [默认：${OS_NAME,,}-${VERSION}]: " HOSTNAME
-HOSTNAME=${HOSTNAME:-${OS_NAME,,}-${VERSION}}
+    echo "选择虚拟机类型："
+    echo "1) LXC"
+    echo "2) VM"
+    read -p "请选择 [1/2]: " vm_choice; vm_choice=${vm_choice:-1}
 
-# 创建 LXC 或 VM
-if [[ $TYPE == "LXC" ]]; then
-    pct create $VMID "${CACHE_DIR}/${IMAGE_NAME}" \
-        --hostname "$HOSTNAME" \
-        --cores 2 \
-        --memory 512 \
-        --swap 0 \
-        --rootfs ${STORAGE}:2 \
-        --net0 name=eth0,bridge=vmbr0,ip=dhcp \
-        --ostype unmanaged \
-        --arch amd64 \
-        --features nesting=1 \
-        --unprivileged 0 || exit 1
-    pct start $VMID
-else
-    qm create $VMID --name "$HOSTNAME" --memory 1024 --cores 2 --net0 virtio,bridge=vmbr0
-    qm importdisk $VMID "${CACHE_DIR}/${IMAGE_NAME}" $STORAGE
-    qm set $VMID --scsihw virtio-scsi-pci --scsi0 ${STORAGE}:vm-${VMID}-disk-0
-    qm set $VMID --boot order=scsi0 --ostype l26 --serial0 socket --vga serial0
-    qm start $VMID
-fi
+    if [ "$vm_choice" = "2" ]; then
+        read -p "请输入 VM ID [2001]: " VMID; VMID=${VMID:-2001}
+        create_vm $VMID $OS $VER
+    else
+        read -p "请输入 LXC ID [1001]: " CTID; CTID=${CTID:-1001}
+        if pct status $CTID &>/dev/null; then
+            echo "ID $CTID 已存在，退出"; exit 1
+        fi
+        create_lxc $CTID $OS $VER
+    fi
 
-echo -e "\n${GREEN}[✔] ${OS_NAME} ${VERSION} ${TYPE} 安装完成，ID为 ${VMID}${RESET}"
+    echo "[✔] $OS $VER 安装完成。"
+}
+
+main
