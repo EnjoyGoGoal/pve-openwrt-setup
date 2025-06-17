@@ -26,6 +26,8 @@ select_storage() {
     for i in "${!STS[@]}"; do
         STORAGE_NAME=$(echo ${STS[$i]} | awk '{print $1}' | xargs)  # 清除多余的空格
         STORAGE_TYPE=$(echo ${STS[$i]} | awk '{print $2}' | xargs)  # 清除多余的空格
+        # 去除括号中的内容，处理存储池名称和类型
+        STORAGE_NAME=$(echo $STORAGE_NAME | sed 's/(.*)//')
         echo " $((i+1))). ${STORAGE_NAME} (${STORAGE_TYPE})"
     done
 
@@ -33,13 +35,19 @@ select_storage() {
     sc=${sc:-1}
     STORAGE_NAME=$(echo ${STS[$((sc-1))]} | awk '{print $1}' | xargs)  # 清除多余的空格
     STORAGE_TYPE=$(echo ${STS[$((sc-1))]} | awk '{print $2}' | xargs)  # 清除多余的空格
+    STORAGE_NAME=$(echo $STORAGE_NAME | sed 's/(.*)//')  # 去除括号中的内容
     
     echo "已选择存储池：$STORAGE_NAME ($STORAGE_TYPE)"
     
     # 确认存储池类型，针对 dir 和 esxi 做特殊处理
     case "$STORAGE_TYPE" in
         dir)
-            echo "正在使用本地存储池：$STORAGE_NAME"
+            if [[ "$STORAGE_NAME" == "local" ]]; then
+                echo "正在使用本地存储池：$STORAGE_NAME"
+            else
+                echo "未知的 dir 类型存储池，退出。"
+                exit 1
+            fi
             ;;
         esxi)
             echo "正在使用与 VMware ESXi 服务器连接的存储池：$STORAGE_NAME"
