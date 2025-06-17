@@ -1,97 +1,146 @@
 #!/bin/bash
-set -euo pipefail
 
-# 检查是否是 root 用户
-[ "$(id -u)" != 0 ] && { echo "请用 root 执行"; exit 1; }
-
-# 获取 OpenWrt 最新版本
-echo "🔍 获取 OpenWrt 最新版本..."
-OW_VER=$(curl -s https://downloads.openwrt.org/releases/ \
-  | grep -Po 'href="\K\d+\.\d+\.\d+(?=/")' \
-  | sort -V | tail -1)
-[ -z "$OW_VER" ] && { echo "获取 OpenWrt 版本失败"; exit 1; }
-echo "→ OpenWrt：$OW_VER"
-
-# 获取 ImmortalWrt 最新版本
-echo "🔍 获取 ImmortalWrt 最新版本..."
-IW_VER=$(curl -s https://downloads.immortalwrt.org/releases/ \
-  | grep -Po 'href="\K24\.10\.1(?=/")' \
-  | sort -V | tail -1)
-[ -z "$IW_VER" ] && { echo "获取 ImmortalWrt 版本失败"; exit 1; }
-echo "→ ImmortalWrt：$IW_VER"
-
-# 选择要安装的系统
-echo -e "请选择安装的系统：\n 1) OpenWrt $OW_VER\n 2) ImmortalWrt $IW_VER"
-read -p "> " ch
-if [ "$ch" = "2" ]; then
-    DIST="immortalwrt"; VER="$IW_VER"
-    IMG_URL="https://downloads.immortalwrt.org/releases/${VER}/targets/x86/64/immortalwrt-${VER}-x86-64-rootfs.tar.gz"
-else
-    DIST="openwrt"; VER="$OW_VER"
-    IMG_URL="https://downloads.openwrt.org/releases/${VER}/targets/x86/64/openwrt-${VER}-x86-64-rootfs.tar.gz"
-fi
-
-# 选择安装方式（LXC 或 VM）
-echo -e "请选择安装方式：\n 1) LXC\n 2) VM"
-read -p "> " m; m=${m:-1}
-if [ "$m" = "2" ]; then MODE="vm"; START=2001; else MODE="lxc"; START=1001; fi
-
-# 列出可用的存储池
-mapfile -t STS < <(grep -E '^[[:alnum:]-]+' /etc/pve/storage.cfg | awk '{print $1}')
-if [ ${#STS[@]} -eq 0 ]; then
-    echo "未检测到存储池"; exit 1;
-fi
-
-echo "可用存储池："
-for i in "${!STS[@]}"; do echo " $((i+1))). ${STS[i]}"; done
-read -p "选择存储池编号 [默认1]: " sc; sc=${sc:-1}
-STORAGE=${STS[$((sc-1))]}
-
-# 下载镜像文件，如果镜像文件不存在
-TPL="/var/lib/vz/template/cache/${DIST}-${VER}-x86-64-rootfs.tar.gz"
-if [ ! -f "$TPL" ]; then
-  echo "📥 正在下载镜像..."
-  mkdir -p "$(dirname "$TPL")"
-  wget -q -O "$TPL" "$IMG_URL"
-  echo "✅ 下载完成"
-else
-  echo "✅ 镜像已存在：$TPL"
-fi
-
-# 获取并分配 LXC 或 VM 的 ID
-get_id() {
-  local id=$1
-  while :; do
-    if [ "$MODE" = "lxc" ] && [ ! -f "/etc/pve/lxc/${id}.conf" ]; then echo "$id"; return; fi
-    if [ "$MODE" = "vm" ] && [ ! -f "/etc/pve/qemu-server/${id}.conf" ]; then echo "$id"; return; fi
-    id=$((id+1))
-  done
+# 检查 OpenWrt 或 ImmortalWrt 版本并下载镜像
+get_latest_version() {
+    echo "🔍 获取 OpenWrt 最新版本号..."
+    OPENWRT_VERSION=$(curl -s https://downloads.openwrt.org/releases/latest/ | grep -oP 'OpenWrt\s*\K[0-9.]+')
+    echo "→ OpenWrt 最新版本：$OPENWRT_VERSION"
+    
+    echo "🔍 获取 ImmortalWrt 最新版本号..."
+    IMMORTALWRT_VERSION=$(curl -s https://immortalwrt.org/releases/latest/ | grep -oP 'ImmortalWrt\s*\K[0-9.]+')
+    echo "→ ImmortalWrt 最新版本：$IMMORTALWRT_VERSION"
 }
-ID=$(get_id $START)
-echo "→ 分配 ID：$ID"
 
-# 创建 LXC 容器或 VM 实例
-if [ "$MODE" = "lxc" ]; then
-  pct create "$ID" "$TPL" \
-    --hostname "${DIST}-lxc" \
-    --cores 2 --memory 4096 --swap 0 \
-    --rootfs "${STORAGE}:2" \
-    --net0 name=eth0,bridge=vmbr0,ip=dhcp \
-    --arch amd64 --features nesting=1 --unprivileged 0 --ostype unmanaged
-  pct set "$ID" --onboot 1
-  pct start "$ID"
-  echo "✅ LXC 容器创建成功 (ID=$ID)"
-else
-  qm create "$ID" --name "${DIST}-vm" \
-    --memory 4096 --cores 2 \
-    --net0 virtio,bridge=vmbr0 \
-    --boot order=ide0 --ostype l26
-  qm importdisk "$ID" "$TPL" "$STORAGE"
-  qm set "$ID" --ide0 "${STORAGE}:vm-${ID}-disk-0" \
-              --boot order=ide0 --onboot 1
-  qm start "$ID"
-  echo "✅ VM 虚拟机创建成功 (ID=$ID)"
-fi
+# 列出可用的存储池并选择
+select_storage() {
+    echo "🔍 检测存储池..."
+    mapfile -t STS < <(grep -E '^[[:alnum:]-]+' /etc/pve/storage.cfg | awk '{print $1}')
+    
+    if [ ${#STS[@]} -eq 0 ]; then
+        echo "未检测到存储池"; exit 1;
+    fi
 
-echo "🎉 安装完成！"
-echo "系统：${DIST}-${VER} | 类型：${MODE} | ID：${ID} | 存储池：${STORAGE}"
+    echo "可用存储池："
+    for i in "${!STS[@]}"; do echo " $((i+1))). ${STS[i]}"; done
+    
+    read -p "选择存储池编号 [默认1]: " sc; sc=${sc:-1}
+    STORAGE=${STS[$((sc-1))]}
+    
+    echo "已选择存储池：$STORAGE"
+    
+    # 根据存储池类型做相应处理
+    if [ "$STORAGE" == "local" ]; then
+        echo "正在使用本地存储池：/var/lib/vz"
+    elif [ "$STORAGE" == "esxi01" ]; then
+        echo "正在使用与 VMware ESXi 服务器连接的存储池 esxi01"
+        # 这里可以添加额外的处理逻辑，针对 ESXi 存储池进行操作
+    else
+        echo "未知存储池类型，退出。"
+        exit 1
+    fi
+}
+
+# 检查容器 ID 是否已存在
+check_container_id() {
+    local CT_ID=$1
+    if pct status $CT_ID &>/dev/null; then
+        echo "容器 ID $CT_ID 已存在，选择另一个容器 ID。"
+        return 1
+    fi
+    return 0
+}
+
+# 获取 OpenWrt 或 ImmortalWrt 镜像文件
+get_image_file() {
+    local OS=$1
+    local VERSION=$2
+    local URL
+
+    if [ "$OS" == "OpenWrt" ]; then
+        URL="https://downloads.openwrt.org/releases/$VERSION/targets/x86/64/openwrt-$VERSION-x86-64-rootfs.tar.gz"
+    elif [ "$OS" == "ImmortalWrt" ]; then
+        URL="https://downloads.immortalwrt.org/releases/$VERSION/targets/x86/64/immortalwrt-$VERSION-x86-64-rootfs.tar.gz"
+    else
+        echo "未知操作系统类型：$OS"
+        exit 1
+    fi
+
+    echo "🔍 下载 $OS 镜像：$URL"
+    wget -O /var/lib/vz/template/cache/$OS-$VERSION-rootfs.tar.gz $URL
+}
+
+# 创建容器
+create_container() {
+    local CT_ID=$1
+    local OS=$2
+    local VERSION=$3
+    local TEMPLATE="/var/lib/vz/template/cache/$OS-$VERSION-rootfs.tar.gz"
+
+    pct create $CT_ID $TEMPLATE \
+        --hostname $OS-$VERSION \
+        --cores 2 \
+        --memory 4096 \
+        --swap 0 \
+        --rootfs $STORAGE:2 \
+        --net0 name=eth0,bridge=vmbr0,ip=dhcp \
+        --ostype unmanaged \
+        --arch amd64 \
+        --features nesting=1 \
+        --unprivileged 0
+}
+
+# 启动容器
+start_container() {
+    local CT_ID=$1
+    pct start $CT_ID
+    echo "[✔] 容器已启动。"
+}
+
+# 主程序
+main() {
+    # 获取最新版本
+    get_latest_version
+
+    # 选择操作系统
+    echo "选择要安装的操作系统："
+    echo "1) OpenWrt"
+    echo "2) ImmortalWrt"
+    read -p "请选择 [1/2]: " os_choice
+    if [ "$os_choice" == "1" ]; then
+        OS="OpenWrt"
+        VERSION=$OPENWRT_VERSION
+    elif [ "$os_choice" == "2" ]; then
+        OS="ImmortalWrt"
+        VERSION=$IMMORTALWRT_VERSION
+    else
+        echo "无效的选择，退出脚本。"
+        exit 1
+    fi
+
+    # 检查存储池
+    select_storage
+
+    # 获取镜像文件
+    get_image_file $OS $VERSION
+
+    # 获取并检查容器 ID
+    read -p "请输入容器 ID（默认1001）: " CT_ID
+    CT_ID=${CT_ID:-1001}
+    check_container_id $CT_ID
+    if [ $? -ne 0 ]; then
+        read -p "请输入新的容器 ID: " CT_ID
+        check_container_id $CT_ID
+        if [ $? -ne 0 ]; then
+            echo "无法找到有效的容器 ID，退出脚本。"
+            exit 1
+        fi
+    fi
+
+    # 创建并启动容器
+    create_container $CT_ID $OS $VERSION
+    start_container $CT_ID
+
+    echo "[✔] $OS $VERSION LXC 容器安装完成。"
+}
+
+main
