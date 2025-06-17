@@ -3,7 +3,7 @@
 CT_ID=1001
 CT_NAME="openwrt-lxc"
 STORAGE="local"
-ROOTFS_SIZE="2G"
+ROOTFS_SIZE="2"
 MEMORY="4096"
 CPUS="2"
 BRIDGE="vmbr0"
