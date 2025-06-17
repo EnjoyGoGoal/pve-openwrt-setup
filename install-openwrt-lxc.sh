@@ -31,4 +31,20 @@ pct create $CT_ID $TEMPLATE \
   --cores $CPUS \
   --memory $MEMORY \
   --swap 0 \
-  --roo
+  --rootfs ${STORAGE}:${ROOTFS_SIZE} \
+  --net0 name=eth0,bridge=$BRIDGE,ip=dhcp \
+  --ostype unmanaged \
+  --arch amd64 \
+  --features nesting=1 \
+  --unprivileged 0
+
+# 启动容器
+pct start $CT_ID
+
+# 设置开机自启
+pct set $CT_ID --onboot 1
+
+# 显示容器 IP
+sleep 5
+IP_ADDR=$(pct exec $CT_ID -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+echo "[✔] OpenWrt ${OPENWRT_VERSION} LXC 容器安装完成，IP 地址为：$IP_ADDR，已设置开机自启。"
