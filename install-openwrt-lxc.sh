@@ -2,7 +2,7 @@
 
 CT_ID=1001
 CT_NAME="openwrt-lxc"
-STORAGE="local-lvm"
+STORAGE="local"
 ROOTFS_SIZE="2G"
 MEMORY="4096"
 CPUS="2"
