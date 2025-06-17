@@ -6,12 +6,16 @@ if [ "$(id -u)" -ne "0" ]; then
     exit 1
 fi
 
-# 更新软件源列表
-echo "正在更新软件源..."
-opkg update
+# 配置 OpenClash 的软件源（这里选择适合 x86 架构的版本）
+echo "正在配置 OpenClash 软件源..."
+echo "src/gz openwrt_clash https://github.com/vernesong/OpenClash/releases/download/1.7.0/openwrt-clash-1.7.0-x86_64.ipk" >> /etc/opkg/customfeeds.conf
 
-# 安装 OpenClash 依赖
-echo "正在安装 luci-app-openclash..."
+# 更新软件源列表
+echo "更新软件源列表..."
+opkg update
+echo "开始安装 OpenClash..."
+# 安装 OpenClash 所需的依赖
+echo "正在安装依赖..."
 opkg install luci-app-openclash
 
 # 启动 OpenClash 服务并设置开机启动
