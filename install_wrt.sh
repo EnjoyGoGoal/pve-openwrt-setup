@@ -17,7 +17,8 @@ select_storage() {
     mapfile -t STS < <(grep -E '^[[:alnum:]-]+' /etc/pve/storage.cfg | awk '{print $1, $2}')
 
     if [ ${#STS[@]} -eq 0 ]; then
-        echo "未检测到存储池"; exit 1;
+        echo "未检测到存储池"
+        exit 1
     fi
 
     echo "可用存储池："
