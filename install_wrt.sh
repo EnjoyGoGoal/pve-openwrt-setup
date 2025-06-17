@@ -44,11 +44,11 @@ download_image() {
     if [ "$OS" = "OpenWrt" ]; then
         URL="https://downloads.openwrt.org/releases/${VER}/targets/x86/64/openwrt-${VER}-x86-64-rootfs.tar.gz"
     else
-        URL="https://downloads.immortalwrt.org/releases/${VER}/targets/x86/64/immortalwrt-${VER}-x86-64-rootfs.tar.gz"
+        URL="https://downloads.immortalwrt.org/releases/${VER}/targets/x86/64/immortalwrt-${VER}-x86-64-generic-ext4-combined.img.gz"  # 更新的镜像链接
     fi
     echo "🔍 下载 ${OS} 镜像：$URL"
     mkdir -p /var/lib/vz/template/cache
-    wget -q -O /var/lib/vz/template/cache/${OS}-${VER}-rootfs.tar.gz "$URL"
+    wget -q -O /var/lib/vz/template/cache/${OS}-${VER}-generic-ext4-combined.img.gz "$URL"
 }
 
 # ════════════════════════════
@@ -56,7 +56,7 @@ download_image() {
 # ════════════════════════════
 create_lxc() {
     local ID=$1 OS=$2 VER=$3
-    local TMP="/var/lib/vz/template/cache/${OS}-${VER}-rootfs.tar.gz"
+    local TMP="/var/lib/vz/template/cache/${OS}-${VER}-generic-ext4-combined.img.gz"
     echo "🚀 创建 LXC 容器 ID=$ID"
     pct create $ID "$TMP" \
       --hostname "${OS,,}-lxc" \
@@ -68,21 +68,6 @@ create_lxc() {
     pct set $ID --onboot 1
     pct start $ID
     echo "✅ 容器已启动 (ID=$ID)"
-}
-
-# ════════════════════════════
-#  函数：创建并启动 VM
-# ════════════════════════════
-create_vm() {
-    local ID=$1 OS=$2 VER=$3
-    local TMP="/var/lib/vz/template/cache/${OS}-${VER}-x86-64-combined-ext4.img.gz"
-    echo "🚀 创建 VM 虚拟机 ID=$ID"
-    qm create $ID --name "${OS,,}-vm" --memory 4096 --cores 2 --net0 virtio,bridge=vmbr0
-    qm importdisk $ID "$TMP" ${STORAGE}
-    qm set $ID --scsihw virtio-scsi-pci --scsi0 ${STORAGE}:vm-${ID}-disk-0
-    qm set $ID --boot order=scsi0 --ostype l26 --serial0 socket --vga serial0
-    qm start $ID
-    echo "✅ 虚拟机已启动 (ID=$ID)"
 }
 
 # ════════════════════════════
@@ -102,22 +87,12 @@ main() {
     select_storage
     download_image $OS $VER
 
-    echo "选择虚拟机类型："
-    echo "1) LXC"
-    echo "2) VM"
-    read -p "请选择 [1/2]: " vm_choice; vm_choice=${vm_choice:-1}
-
-    if [ "$vm_choice" = "2" ]; then
-        read -p "请输入 VM ID [2001]: " VMID; VMID=${VMID:-2001}
-        create_vm $VMID $OS $VER
-    else
-        read -p "请输入 LXC ID [1001]: " CTID; CTID=${CTID:-1001}
-        if pct status $CTID &>/dev/null; then
-            echo "ID $CTID 已存在，退出"; exit 1
-        fi
-        create_lxc $CTID $OS $VER
+    read -p "请输入 LXC ID [1001]: " CTID; CTID=${CTID:-1001}
+    if pct status $CTID &>/dev/null; then
+        echo "ID $CTID 已存在，退出"; exit 1
     fi
 
+    create_lxc $CTID $OS $VER
     echo "[✔] $OS $VER 安装完成。"
 }
 
