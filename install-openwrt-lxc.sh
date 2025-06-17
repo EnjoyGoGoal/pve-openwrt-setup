@@ -18,26 +18,13 @@ pct create $CT_ID $TEMPLATE \
   --hostname $CT_NAME \
   --cores $CPUS \
   --memory $MEMORY \
+  --swap 0 \
   --rootfs ${STORAGE}:${ROOTFS_SIZE} \
   --net0 name=eth0,bridge=$BRIDGE,ip=dhcp \
   --ostype unmanaged \
   --features nesting=1 \
-  --unprivileged 1
+  --unprivileged 0
 
 pct start $CT_ID
 
-echo "[✔] LXC 容器安装完成，正在配置组件..."
-
-pct exec $CT_ID -- sh -c "opkg update && opkg install curl ca-bundle tailscale"
-
-pct exec $CT_ID -- sh -c '
-curl -s -L https://github.com/AdguardTeam/AdGuardHome/releases/latest/download/AdGuardHome_linux_amd64.tar.gz | tar xz -C /tmp &&
-/tmp/AdGuardHome/AdGuardHome -s install
-'
-
-pct exec $CT_ID -- sh -c "
-opkg update && opkg install zerotier
-/etc/init.d/zerotier enable && /etc/init.d/zerotier start
-"
-
-echo "[✔] Tailscale、AdGuardHome、ZeroTier 安装完成"
+echo "[✔] OpenWrt ${OPENWRT_VERSION} LXC 容器安装完成。"
