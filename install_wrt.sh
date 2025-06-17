@@ -102,18 +102,17 @@ main() {
     select_storage
     download_image $OS $VER
 
+    # 选择创建 LXC 或 VM
     echo "选择容器类型：1) LXC  2) VM"
     read -p "[1]: " ct_or_vm; ct_or_vm=${ct_or_vm:-1}
 
     if [ "$ct_or_vm" = "2" ]; then
-        VMID=$(pvesh get /nodes/pve01/qemu | jq '.[].vmid' | sort -n | tail -1)
-        VMID=$((VMID + 1))
+        VMID=$((2001))  # 从 2001 开始
         echo "请输入虚拟机 ID [默认：$VMID]: "
         read -p "VMID: " CTID; CTID=${CTID:-$VMID}
         create_vm $CTID $OS $VER
     else
-        LXCID=$(pvesh get /nodes/pve01/lxc | jq '.[].vmid' | sort -n | tail -1)
-        LXCID=$((LXCID + 1))
+        LXCID=$((1001))  # 从 1001 开始
         echo "请输入容器 ID [默认：$LXCID]: "
         read -p "LXC ID: " CTID; CTID=${CTID:-$LXCID}
         create_lxc $CTID $OS $VER
