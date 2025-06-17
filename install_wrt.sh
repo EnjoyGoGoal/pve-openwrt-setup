@@ -11,64 +11,32 @@ get_latest_version() {
     echo "→ ImmortalWrt 最新版本：$IMMORTALWRT_VERSION"
 }
 
-# 列出存储池，并确保正确显示存储池类型
+# 选择存储池
 select_storage() {
-    echo "🔍 检测存储池..."
-    
-    # 获取存储池配置
-    mapfile -t STS < <(grep -E '^[[:alnum:]-]+' /etc/pve/storage.cfg | awk '{print $1, $2}')
-
-    if [ ${#STS[@]} -eq 0 ]; then
-        echo "未检测到存储池"
-        exit 1
-    fi
-
-    echo "可用存储池："
-    # 列出存储池名称和类型
-    for i in "${!STS[@]}"; do
-        STORAGE_NAME=$(echo ${STS[$i]} | awk '{print $1}' | xargs)  # 清除多余的空格
-        STORAGE_TYPE=$(echo ${STS[$i]} | awk '{print $2}' | xargs)  # 清除多余的空格
-        # 输出存储池信息
-        echo " $((i+1))). ${STORAGE_NAME} (${STORAGE_TYPE})"
-    done
-
+    echo "🔍 请选择存储池："
+    echo "1) local-lvm"
+    echo "2) local"
+    echo "3) 其它"
     read -p "选择存储池编号 [默认1]: " sc
     sc=${sc:-1}
-    STORAGE_NAME=$(echo ${STS[$((sc-1))]} | awk '{print $1}' | xargs)  # 清除多余的空格
-    STORAGE_TYPE=$(echo ${STS[$((sc-1))]} | awk '{print $2}' | xargs)  # 清除多余的空格
-    STORAGE_NAME=$(echo $STORAGE_NAME | sed 's/.*(\(.*\))/\1/')  # 获取括号中的存储池名称
-    
-    echo "已选择存储池：$STORAGE_NAME ($STORAGE_TYPE)"
-    
-    # 存储池类型处理逻辑
-    case "$STORAGE_TYPE" in
-        dir)
-            if [[ "$STORAGE_NAME" == "local" ]]; then
-                echo "正在使用本地存储池：$STORAGE_NAME"
-            else
-                echo "未知的 dir 类型存储池，退出。"
-                exit 1
-            fi
+
+    case "$sc" in
+        1)
+            STORAGE_NAME="local-lvm"
             ;;
-        esxi)
-            echo "正在使用与 VMware ESXi 服务器连接的存储池：$STORAGE_NAME"
-            # 这里可以添加额外的处理逻辑，针对 ESXi 存储池进行操作
+        2)
+            STORAGE_NAME="local"
+            ;;
+        3)
+            read -p "请输入自定义存储池名称: " STORAGE_NAME
             ;;
         *)
-            echo "未知存储池类型：$STORAGE_TYPE，退出。"
+            echo "无效选择，退出。"
             exit 1
             ;;
     esac
-}
 
-# 检查容器 ID 是否已存在
-check_container_id() {
-    local CT_ID=$1
-    if pct status $CT_ID &>/dev/null; then
-        echo "容器 ID $CT_ID 已存在，选择另一个容器 ID。"
-        return 1
-    fi
-    return 0
+    echo "已选择存储池：$STORAGE_NAME"
 }
 
 # 获取 OpenWrt 或 ImmortalWrt 镜像文件
@@ -138,7 +106,7 @@ main() {
         exit 1
     fi
 
-    # 检查存储池
+    # 选择存储池
     select_storage
 
     # 获取镜像文件
@@ -147,14 +115,9 @@ main() {
     # 获取并检查容器 ID
     read -p "请输入容器 ID（默认1001）: " CT_ID
     CT_ID=${CT_ID:-1001}
-    check_container_id $CT_ID
-    if [ $? -ne 0 ]; then
-        read -p "请输入新的容器 ID: " CT_ID
-        check_container_id $CT_ID
-        if [ $? -ne 0 ]; then
-            echo "无法找到有效的容器 ID，退出脚本。"
-            exit 1
-        fi
+    if pct status $CT_ID &>/dev/null; then
+        echo "容器 ID $CT_ID 已存在，选择另一个容器 ID。"
+        exit 1
     fi
 
     # 创建并启动容器
