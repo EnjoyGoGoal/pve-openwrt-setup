@@ -15,7 +15,7 @@
 ### 1. 下载脚本
 
 ```bash
-git clone https://github.com/yourusername/openwrt-lxc-proxmox.git
+git clone https://github.com/EnjoyGoGoal/openwrt-lxc-proxmox.git
 cd openwrt-lxc-proxmox
 
 或终端运行
