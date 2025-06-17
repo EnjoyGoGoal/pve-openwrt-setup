@@ -19,13 +19,13 @@ command -v wget >/dev/null 2>&1 || { echo -e "${RED}请先安装 wget${RESET}"; 
 
 # 获取最新版本函数
 get_latest_openwrt_version() {
-    echo -e "${YELLOW}🔍 获取 OpenWrt 最新版本号...${RESET}"
-    curl -s https://downloads.openwrt.org/releases/ | grep -oE '>[0-9]+\.[0-9]+\.[0-9]+/' | tr -d '/' | tr -d '>' | sort -Vr | head -n1
+    echo "获取 OpenWrt 最新版本号..."
+    curl -s https://downloads.openwrt.org/releases/ | grep -oE '[0-9]+\.[0-9]+\.[0-9]+/' | tr -d '/' | sort -Vr | head -n1
 }
 
 get_latest_immortalwrt_version() {
-    echo -e "${YELLOW}🔍 获取 ImmortalWrt 最新版本号...${RESET}"
-    curl -s https://downloads.immortalwrt.org/releases/ | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | sort -Vr | head -n1
+    echo "获取 ImmortalWrt 最新版本号..."
+    curl -s https://downloads.immortalwrt.org/releases/ | grep -oE '[0-9]+\.[0-9]+\.[0-9]+/' | tr -d '/' | sort -Vr | head -n1
 }
 
 # 选择系统
