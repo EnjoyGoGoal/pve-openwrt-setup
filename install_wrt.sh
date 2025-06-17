@@ -27,7 +27,7 @@ select_storage() {
         STORAGE_NAME=$(echo ${STS[$i]} | awk '{print $1}' | xargs)  # 清除多余的空格
         STORAGE_TYPE=$(echo ${STS[$i]} | awk '{print $2}' | xargs)  # 清除多余的空格
         # 去除括号中的内容，处理存储池名称和类型
-        STORAGE_NAME=$(echo $STORAGE_NAME | sed 's/(.*)//')
+        STORAGE_NAME=$(echo $STORAGE_NAME | sed 's/.*(\(.*\))/\1/')
         echo " $((i+1))). ${STORAGE_NAME} (${STORAGE_TYPE})"
     done
 
@@ -35,7 +35,7 @@ select_storage() {
     sc=${sc:-1}
     STORAGE_NAME=$(echo ${STS[$((sc-1))]} | awk '{print $1}' | xargs)  # 清除多余的空格
     STORAGE_TYPE=$(echo ${STS[$((sc-1))]} | awk '{print $2}' | xargs)  # 清除多余的空格
-    STORAGE_NAME=$(echo $STORAGE_NAME | sed 's/(.*)//')  # 去除括号中的内容
+    STORAGE_NAME=$(echo $STORAGE_NAME | sed 's/.*(\(.*\))/\1/')  # 获取括号中的存储池名称
     
     echo "已选择存储池：$STORAGE_NAME ($STORAGE_TYPE)"
     
