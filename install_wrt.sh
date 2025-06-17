@@ -71,6 +71,21 @@ create_lxc() {
 }
 
 # ════════════════════════════
+#  函数：创建并启动 VM
+# ════════════════════════════
+create_vm() {
+    local ID=$1 OS=$2 VER=$3
+    local TMP="/var/lib/vz/template/cache/${OS}-${VER}-rootfs.tar.gz"
+    echo "🚀 创建 VM 虚拟机 ID=$ID"
+    qm create $ID --name "${OS,,}-vm" --memory 4096 --cores 2 --net0 virtio,bridge=vmbr0
+    qm importdisk $ID "$TMP" $STORAGE
+    qm set $ID --scsihw virtio-scsi-pci --ide2 $STORAGE:cloudinit
+    qm set $ID --boot order=cd
+    qm start $ID
+    echo "✅ 虚拟机已启动 (ID=$ID)"
+}
+
+# ════════════════════════════
 #  主流程
 # ════════════════════════════
 main() {
@@ -87,12 +102,23 @@ main() {
     select_storage
     download_image $OS $VER
 
-    read -p "请输入 LXC ID [1001]: " CTID; CTID=${CTID:-1001}
-    if pct status $CTID &>/dev/null; then
-        echo "ID $CTID 已存在，退出"; exit 1
+    echo "选择容器类型：1) LXC  2) VM"
+    read -p "[1]: " ct_or_vm; ct_or_vm=${ct_or_vm:-1}
+
+    if [ "$ct_or_vm" = "2" ]; then
+        VMID=$(pvesh get /nodes/pve01/qemu | jq '.[].vmid' | sort -n | tail -1)
+        VMID=$((VMID + 1))
+        echo "请输入虚拟机 ID [默认：$VMID]: "
+        read -p "VMID: " CTID; CTID=${CTID:-$VMID}
+        create_vm $CTID $OS $VER
+    else
+        LXCID=$(pvesh get /nodes/pve01/lxc | jq '.[].vmid' | sort -n | tail -1)
+        LXCID=$((LXCID + 1))
+        echo "请输入容器 ID [默认：$LXCID]: "
+        read -p "LXC ID: " CTID; CTID=${CTID:-$LXCID}
+        create_lxc $CTID $OS $VER
     fi
 
-    create_lxc $CTID $OS $VER
     echo "[✔] $OS $VER 安装完成。"
 }
 
