@@ -11,21 +11,24 @@ OPENWRT_VERSION="24.10.1"
 ROOTFS_URL="https://downloads.openwrt.org/releases/${OPENWRT_VERSION}/targets/x86/64/openwrt-${OPENWRT_VERSION}-x86-64-rootfs.tar.gz"
 TEMPLATE="/var/lib/vz/template/cache/openwrt-rootfs-${OPENWRT_VERSION}.tar.gz"
 
+# 检查容器是否存在
+if pct status $CT_ID &>/dev/null; then
+  echo "[!] 容器 $CT_ID 已存在，请先删除或更换 CT_ID"
+  exit 1
+fi
+
+# 下载 rootfs
 mkdir -p $(dirname $TEMPLATE)
 wget -O $TEMPLATE $ROOTFS_URL
+if [ $? -ne 0 ]; then
+  echo "[✘] RootFS 下载失败，请检查网络或 URL 是否有效。"
+  exit 1
+fi
 
+# 创建容器
 pct create $CT_ID $TEMPLATE \
   --hostname $CT_NAME \
   --cores $CPUS \
   --memory $MEMORY \
   --swap 0 \
-  --rootfs ${STORAGE}:${ROOTFS_SIZE} \
-  --net0 name=eth0,bridge=$BRIDGE,ip=dhcp \
-  --ostype unmanaged \
-  --arch amd64 \
-  --features nesting=1 \
-  --unprivileged 0
-
-pct start $CT_ID
-
-echo "[✔] OpenWrt ${OPENWRT_VERSION} LXC 容器安装完成。"
+  --roo
