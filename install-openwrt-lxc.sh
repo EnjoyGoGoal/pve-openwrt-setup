@@ -22,6 +22,7 @@ pct create $CT_ID $TEMPLATE \
   --rootfs ${STORAGE}:${ROOTFS_SIZE} \
   --net0 name=eth0,bridge=$BRIDGE,ip=dhcp \
   --ostype unmanaged \
+  --arch amd64 \
   --features nesting=1 \
   --unprivileged 0
 
