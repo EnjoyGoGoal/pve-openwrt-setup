@@ -52,6 +52,21 @@ download_image() {
 }
 
 # ════════════════════════════
+#  函数：下载虚拟机镜像
+# ════════════════════════════
+download_vm_image() {
+    local OS=$1 VER=$2 URL
+    if [ "$OS" = "OpenWrt" ]; then
+        URL="https://downloads.openwrt.org/releases/${VER}/targets/x86/64/openwrt-${VER}-x86-64-rootfs.img.gz"
+    else
+        URL="https://downloads.immortalwrt.org/releases/${VER}/targets/x86/64/immortalwrt-${VER}-x86-64-rootfs.img.gz"
+    fi
+    echo "🔍 下载 ${OS} 虚拟机镜像：$URL"
+    mkdir -p /var/lib/vz/template/iso
+    wget -q -O /var/lib/vz/template/iso/${OS}-${VER}-rootfs.img.gz "$URL"
+}
+
+# ════════════════════════════
 #  函数：创建并启动 LXC
 # ════════════════════════════
 create_lxc() {
@@ -75,7 +90,7 @@ create_lxc() {
 # ════════════════════════════
 create_vm() {
     local ID=$1 OS=$2 VER=$3
-    local TMP="/var/lib/vz/template/cache/${OS}-${VER}-rootfs.tar.gz"
+    local TMP="/var/lib/vz/template/iso/${OS}-${VER}-rootfs.img.gz"
     echo "🚀 创建 VM 虚拟机 ID=$ID"
     qm create $ID --name "${OS,,}-vm" --memory 4096 --cores 2 --net0 virtio,bridge=vmbr0
     qm importdisk $ID "$TMP" $STORAGE
@@ -100,18 +115,19 @@ main() {
     fi
 
     select_storage
-    download_image $OS $VER
 
-    # 选择创建 LXC 或 VM
+    # 选择镜像
     echo "选择容器类型：1) LXC  2) VM"
     read -p "[1]: " ct_or_vm; ct_or_vm=${ct_or_vm:-1}
 
     if [ "$ct_or_vm" = "2" ]; then
+        download_vm_image $OS $VER
         VMID=$((2001))  # 从 2001 开始
         echo "请输入虚拟机 ID [默认：$VMID]: "
         read -p "VMID: " CTID; CTID=${CTID:-$VMID}
         create_vm $CTID $OS $VER
     else
+        download_image $OS $VER
         LXCID=$((1001))  # 从 1001 开始
         echo "请输入容器 ID [默认：$LXCID]: "
         read -p "LXC ID: " CTID; CTID=${CTID:-$LXCID}
