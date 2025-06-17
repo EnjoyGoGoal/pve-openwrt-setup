@@ -37,15 +37,19 @@ select_storage() {
     echo "已选择存储池：$STORAGE_NAME ($STORAGE_TYPE)"
     
     # 确认存储池类型，针对 dir 和 esxi 做特殊处理
-    if [[ "$STORAGE_TYPE" == "dir" ]]; then
-        echo "正在使用本地存储池：$STORAGE_NAME"
-    elif [[ "$STORAGE_TYPE" == "esxi" ]]; then
-        echo "正在使用与 VMware ESXi 服务器连接的存储池：$STORAGE_NAME"
-        # 这里可以添加额外的处理逻辑，针对 ESXi 存储池进行操作
-    else
-        echo "未知存储池类型：$STORAGE_TYPE，退出。"
-        exit 1
-    fi
+    case "$STORAGE_TYPE" in
+        dir)
+            echo "正在使用本地存储池：$STORAGE_NAME"
+            ;;
+        esxi)
+            echo "正在使用与 VMware ESXi 服务器连接的存储池：$STORAGE_NAME"
+            # 这里可以添加额外的处理逻辑，针对 ESXi 存储池进行操作
+            ;;
+        *)
+            echo "未知存储池类型：$STORAGE_TYPE，退出。"
+            exit 1
+            ;;
+    esac
 }
 
 # 检查容器 ID 是否已存在
