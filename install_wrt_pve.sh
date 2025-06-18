@@ -60,7 +60,7 @@ select_storage() {
     echo "1) local-lvm"
     echo "2) local"
     echo "3) 其它"
-    read -p "存储池编号 [1]: " sc; sc=${sc:-1}
+    read -p "存储池编号 [2]: " sc; sc=${sc:-2}
     case "$sc" in
         1) STORAGE="local-lvm" ;;
         2) STORAGE="local"    ;;
