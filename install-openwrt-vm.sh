@@ -14,28 +14,36 @@ IMG_URL="https://downloads.openwrt.org/releases/${OPENWRT_VERSION}/targets/x86/6
 wget -O ${IMG}.gz ${IMG_URL}
 gunzip ${IMG}.gz
 
-# 创建虚拟机（基本配置）
+# 确保虚拟机不存在
+qm destroy $VM_ID --purge >/dev/null 2>&1
+
+# 创建虚拟机（仅基本配置）
 qm create $VM_ID --name $VM_NAME --memory $MEMORY --cores $CPUS --net0 virtio,bridge=$BRIDGE
 
 # 导入磁盘到存储
 qm importdisk $VM_ID $IMG $STORAGE --format qcow2
 
+# 获取实际创建的磁盘名称
+DISK_NAME=$(ls /var/lib/vz/images/$VM_ID/ | grep vm-$VM_ID-disk | head -n 1)
+if [ -z "$DISK_NAME" ]; then
+    DISK_NAME="vm-$VM_ID-disk-0"
+fi
+
 # 附加磁盘为SATA设备
-qm set $VM_ID --sata0 $STORAGE:vm-${VM_ID}-disk-0
+qm set $VM_ID --sata0 $STORAGE:$VM_ID/$DISK_NAME
 
 # 设置启动顺序和其他参数
 qm set $VM_ID --boot order=sata0
 qm set $VM_ID --serial0 socket --vga serial0
 
-# 正确调整磁盘大小的方法（如果需要）
-# 注意：这里的磁盘大小参数位置不同
-# DISK_SIZE="2G"
-# qm resize $VM_ID sata0 $DISK_SIZE
-
 # 启动虚拟机
 qm start $VM_ID
 
 echo "[✔] OpenWrt ${OPENWRT_VERSION} VM 创建完成"
+
+# 验证磁盘附加情况
+echo "验证磁盘附加情况:"
+qm config $VM_ID | grep sata0
 
 # 自动安装 OpenClash（首次进入系统后执行）
 cat << EOF
