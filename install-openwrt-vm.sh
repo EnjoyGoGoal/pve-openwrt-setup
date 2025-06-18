@@ -14,7 +14,7 @@ IMG_URL="https://downloads.openwrt.org/releases/${OPENWRT_VERSION}/targets/x86/6
 wget -O ${IMG}.gz ${IMG_URL}
 gunzip ${IMG}.gz
 
-# 创建虚拟机（不带磁盘）
+# 创建虚拟机（基本配置）
 qm create $VM_ID --name $VM_NAME --memory $MEMORY --cores $CPUS --net0 virtio,bridge=$BRIDGE
 
 # 导入磁盘到存储
@@ -26,9 +26,9 @@ qm set $VM_ID --sata0 $STORAGE:vm-${VM_ID}-disk-0
 # 设置启动顺序和其他参数
 qm set $VM_ID --boot order=sata0
 qm set $VM_ID --serial0 socket --vga serial0
-qm set $VM_ID --ide2 $STORAGE:cloudinit  # 添加必要的cloudinit驱动器
 
-# 调整磁盘大小（如果需要）
+# 正确调整磁盘大小的方法（如果需要）
+# 注意：这里的磁盘大小参数位置不同
 # DISK_SIZE="2G"
 # qm resize $VM_ID sata0 $DISK_SIZE
 
