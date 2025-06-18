@@ -119,12 +119,6 @@ echo "[✔] OpenWrt ${OPENWRT_VERSION} VM 创建完成 (ID: $VM_ID)"
 echo "[✔] 使用配置: q35机型, VirtIO SCSI控制器, SATA磁盘接口"
 echo "[✔] 磁盘大小已调整为 $DISK_SIZE"
 
-# 扩展分区以使用全部磁盘空间
-echo "扩展分区以使用全部磁盘空间:"
-opkg install parted
-parted /dev/sda resizepart 2 100%
-resize2fs /dev/sda2
-
 # 13. 验证配置
 echo "验证虚拟机配置:"
 qm config $VM_ID | grep -E "machine:|scsihw:|sata0:|vga:|boot:"
@@ -147,5 +141,11 @@ tar -xzf /etc/openclash/clash.tar.gz -C /etc/openclash && rm /etc/openclash/clas
 
 /etc/init.d/openclash enable
 /etc/init.d/openclash start
+
+# 扩展分区以使用全部磁盘空间
+echo "扩展分区以使用全部磁盘空间:"
+opkg install parted
+parted /dev/sda resizepart 2 100%
+resize2fs /dev/sda2
 
 EOF
