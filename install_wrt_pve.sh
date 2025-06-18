@@ -55,13 +55,15 @@ done
 # ===== 存储选择 =====
 echo "请选择存储位置（例如 local、local-lvm）："
 
+# 强制加入默认选项
 AVAILABLE_STORES=$(pvesm status -content images | awk 'NR>1 {print $1}' | sort -u | uniq)
-OPTIONS=($AVAILABLE_STORES "手动输入")
+STORES_SET=($(echo -e "local\nlocal-lvm\n$AVAILABLE_STORES" | sort -u))
+STORE_OPTIONS=("${STORES_SET[@]}" "手动输入")
 DEFAULT_STORAGE="local"
 
-# 打印选项菜单
+# 打印存储选项
 i=1
-for opt in "${OPTIONS[@]}"; do
+for opt in "${STORE_OPTIONS[@]}"; do
   echo "$i) $opt"
   ((i++))
 done
@@ -70,8 +72,8 @@ read -p "请输入数字选择（默认 ${DEFAULT_STORAGE}）: " store_index
 
 if [[ -z "$store_index" ]]; then
   STORAGE="$DEFAULT_STORAGE"
-elif [[ "$store_index" =~ ^[0-9]+$ ]] && (( store_index >= 1 && store_index <= ${#OPTIONS[@]} )); then
-  STORAGE="${OPTIONS[$((store_index - 1))]}"
+elif [[ "$store_index" =~ ^[0-9]+$ ]] && (( store_index >= 1 && store_index <= ${#STORE_OPTIONS[@]} )); then
+  STORAGE="${STORE_OPTIONS[$((store_index - 1))]}"
   if [[ "$STORAGE" == "手动输入" ]]; then
     read -p "请输入存储名称: " STORAGE
   fi
