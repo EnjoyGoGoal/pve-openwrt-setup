@@ -12,7 +12,7 @@
 set -e
 
 # ===== 默认配置 =====
-LXC_ID=1001
+DEFAULT_LXC_ID=1001
 DEFAULT_VM_ID=2001
 CPUS=2
 MEMORY=4096
@@ -27,50 +27,65 @@ echo "[*] 检查网络连接..."
 ping -c 1 -W 2 1.1.1.1 &>/dev/null || { echo "[✘] 无法连接互联网，请检查网络"; exit 1; }
 
 # ===== 系统选择 =====
-echo "请选择系统类型（默认 OpenWrt）:"
-select OS_TYPE in "openwrt" "immortalwrt"; do
-  OS_TYPE=${OS_TYPE:-"openwrt"}  # 默认选择 openwrt
-  break
-done
+echo "请选择系统类型 (默认 openwrt):"
+select OS_TYPE in "openwrt" "immortalwrt"; do [[ -n "$OS_TYPE" ]] && break; done || OS_TYPE="openwrt"
 
 # ===== 获取最新版本 =====
 get_latest_version() {
   local base_url
   [[ "$1" == "openwrt" ]] && base_url="https://downloads.openwrt.org/releases/"
   [[ "$1" == "immortalwrt" ]] && base_url="https://downloads.immortalwrt.org/releases/"
-  curl -s "$base_url" | grep -oP '\d+\.\d+\.\d+(?=/)' | sort -Vr | head -n 1
+  curl -s "$base_url" | grep -oP '\\d+\\.\\d+\\.\\d+(?=/)' | sort -Vr | head -n 1
 }
 VERSION=$(get_latest_version "$OS_TYPE")
 echo "[✔] 最新版本为：$VERSION"
 
 # ===== 类型选择 =====
-echo "请选择创建类型（默认 LXC）:"
-select CREATE_TYPE in "LXC" "VM"; do
-  CREATE_TYPE=${CREATE_TYPE:-"LXC"}  # 默认选择 LXC
-  break
-done
+echo "请选择创建类型 (默认 LXC):"
+select CREATE_TYPE in "LXC" "VM"; do [[ -n "$CREATE_TYPE" ]] && break; done || CREATE_TYPE="LXC"
 
 # ===== 存储池选择 =====
-echo "请选择存储池（默认 local）:"
-select STORAGE in "local" "local-lvm" "other"; do
-  STORAGE=${STORAGE:-"local"}  # 默认选择 local
+echo "请选择存储池（默认 local）："
+AVAILABLE_STORAGES=$(pvesm status | awk 'NR>1{print $1}')
+select STORAGE in $AVAILABLE_STORAGES "手动输入"; do
+  [[ "$STORAGE" == "手动输入" ]] && read -p "请输入存储名称: " STORAGE
+  [[ -z "$STORAGE" ]] && STORAGE="$DEFAULT_STORAGE"
   break
 done
 
 # ===== 网桥选择 =====
-echo "请选择桥接网卡（默认 vmbr0）:"
+echo "请选择桥接网卡（默认 vmbr0）："
 AVAILABLE_BRIDGES=$(grep -o '^auto .*' /etc/network/interfaces | awk '{print $2}')
 select BRIDGE in $AVAILABLE_BRIDGES "手动输入"; do
   [[ "$BRIDGE" == "手动输入" ]] && read -p "请输入网桥名称: " BRIDGE
-  [[ -z "$BRIDGE" ]] && BRIDGE="$DEFAULT_BRIDGE"  # 默认选择 vmbr0
+  [[ -z "$BRIDGE" ]] && BRIDGE="$DEFAULT_BRIDGE"
   break
 done
 
 # ===== 获取 VM ID =====
 get_vm_id() {
   local vm_id=$DEFAULT_VM_ID
-  read -p "[*] 请提供 VM ID（默认为 $vm_id）： " vm_id_input
-  VM_ID=${vm_id_input:-$vm_id}
+  if qm status $vm_id >/dev/null 2>&1; then
+    read -p "[!] 默认 VM ID $vm_id 已存在，是否继续使用？[Y/n]: " choice
+    case "$choice" in
+      n|N)
+        while true; do
+          read -p "请输入新的 VM ID（100-999）: " vm_id
+          if [[ "$vm_id" =~ ^[1-9][0-9]{2}$ ]] && ! qm status "$vm_id" &>/dev/null; then
+            VM_ID=$vm_id
+            break
+          else
+            echo "[!] 无效或已存在的 VM ID"
+          fi
+        done
+        ;;
+      *)
+        VM_ID=$vm_id
+        ;;
+    esac
+  else
+    VM_ID=$vm_id
+  fi
 }
 [[ "$CREATE_TYPE" == "VM" ]] && get_vm_id
 
@@ -95,14 +110,19 @@ if [[ "$CREATE_TYPE" == "LXC" ]]; then
     wget -O "$LOCAL_FILE" "$DL_URL" || { echo "[✘] 下载失败"; exit 1; }
   fi
 
+  read -p "请输入 LXC ID（默认 ${DEFAULT_LXC_ID}）：" LXC_ID
+  LXC_ID=${LXC_ID:-$DEFAULT_LXC_ID}
+
   if pct status $LXC_ID &>/dev/null; then
     echo "[!] LXC ID $LXC_ID 已存在，请手动处理或更换 ID"
     exit 1
   fi
 
+  LXC_NAME="${OS_TYPE}-${VERSION}"
+
   echo "[*] 创建 LXC 容器..."
   pct create $LXC_ID "$LOCAL_FILE" \
-    --hostname "${OS_TYPE}-lxc" \
+    --hostname "$LXC_NAME" \
     --cores $CPUS \
     --memory $MEMORY \
     --swap 0 \
@@ -159,7 +179,7 @@ else
   qm set $VM_ID --sata0 $STORAGE:$VM_ID/$DISK_NAME
   qm resize $VM_ID sata0 $DISK_SIZE
   qm set $VM_ID --boot order=sata0
-  qm set $VM_ID --serial0 socket
+  qm set $VM_ID --serial0 socket --vga std
   qm set $VM_ID --onboot 1
   qm start $VM_ID
 
@@ -168,30 +188,4 @@ else
 
   echo "[*] 验证 VM 配置:"
   qm config $VM_ID | grep -E "machine:|scsihw:|cpu:|sata0:|vga:|boot:|description:"
-
-  # OpenClash 安装脚本
-  cat << 'EOF' > /root/openclash-install.txt
-
-opkg update
-opkg install curl bash unzip iptables ipset coreutils coreutils-nohup luci luci-compat dnsmasq-full
-
-cd /tmp
-wget https://github.com/vernesong/OpenClash/releases/download/v0.45.128-beta/luci-app-openclash_0.45.128-beta_all.ipk
-opkg install ./luci-app-openclash_0.45.128-beta_all.ipk
-
-mkdir -p /etc/openclash
-curl -Lo /etc/openclash/clash.tar.gz https://cdn.jsdelivr.net/gh/vernesong/OpenClash@master/core/clash-linux-amd64.tar.gz
-tar -xzf /etc/openclash/clash.tar.gz -C /etc/openclash && rm /etc/openclash/clash.tar.gz
-
-/etc/init.d/openclash enable
-/etc/init.d/openclash start
-
-opkg install parted
-parted /dev/sda resizepart 2 100%
-resize2fs /dev/sda2
-
-EOF
-
-  echo "[✔] OpenClash 安装说明已保存到：/root/openclash-install.txt"
-
 fi
