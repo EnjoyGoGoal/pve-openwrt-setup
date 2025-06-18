@@ -53,20 +53,13 @@ select BRIDGE in $AVAILABLE_BRIDGES "手动输入"; do
 done
 
 # ===== 存储池选择 =====
-select_storage() {
-    echo "请选择存储池："
-    echo "1) local-lvm"
-    echo "2) local"
-    echo "3) 其它"
-    read -p "存储池编号 [2]: " sc; sc=${sc:-2}
-    case "$sc" in
-        1) STORAGE="local-lvm" ;;
-        2) STORAGE="local"    ;;
-        3) read -p "请输入自定义存储池名称: " STORAGE ;;
-        *) echo "无效选择" && exit 1 ;;
-    esac
-    echo "→ 存储池: $STORAGE"
-}
+echo "请选择存储池（默认 local）："
+select STORAGE in "local" "local-lvm" "其它"; do
+  [[ "$STORAGE" == "其它" ]] && read -p "请输入自定义存储池名称: " STORAGE
+  [[ -z "$STORAGE" ]] && STORAGE="local"
+  break
+done
+echo "选择的存储池为: $STORAGE"
 
 # ===== 获取 VM ID =====
 get_vm_id() {
