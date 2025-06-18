@@ -3,7 +3,7 @@
 # Script Name: install_wrt_pve_en.sh
 # Description: One-click deployment of OpenWrt / ImmortalWrt on Proxmox VE (LXC or VM)
 # Author: EnjoyGoGoal
-# Version: 1.6
+# Version: 1.0
 # Updated: 2025-06-18
 # License: MIT
 # GitHub: https://github.com/EnjoyGoGoal
