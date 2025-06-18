@@ -53,7 +53,6 @@ select BRIDGE in $AVAILABLE_BRIDGES "手动输入"; do
 done
 
 # ===== 存储池选择 =====
-select_storage
 select_storage() {
     echo "请选择存储池："
     echo "1) local-lvm"
