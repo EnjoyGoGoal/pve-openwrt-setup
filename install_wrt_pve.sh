@@ -13,20 +13,19 @@ set -e
 
 # ===== 默认配置 =====
 LXC_ID=1001
-VM_NAME="openwrt-vm"
 DEFAULT_VM_ID=2001
 CPUS=2
-MEMORY=4096
+MEMORY=1024
 ROOTFS_SIZE=2
 DISK_SIZE="2G"
 DEFAULT_BRIDGE="vmbr0"
 CACHE_DIR="/var/lib/vz/template/cache"
 
-# ===== 检查网络 =====
+# ===== 检查网络连接 =====
 echo "[*] 检查网络连接..."
 ping -c 1 -W 2 1.1.1.1 &>/dev/null || { echo "[✘] 无法连接互联网，请检查网络"; exit 1; }
 
-# ===== 系统选择 =====
+# ===== 选择系统类型 =====
 echo "请选择系统类型:"
 select OS_TYPE in "openwrt" "immortalwrt"; do [[ -n "$OS_TYPE" ]] && break; done
 
@@ -40,11 +39,11 @@ get_latest_version() {
 VERSION=$(get_latest_version "$OS_TYPE")
 echo "[✔] 最新版本为：$VERSION"
 
-# ===== 类型选择 =====
+# ===== 选择创建类型 =====
 echo "请选择创建类型:"
 select CREATE_TYPE in "LXC" "VM"; do [[ -n "$CREATE_TYPE" ]] && break; done
 
-# ===== 网桥选择 =====
+# ===== 选择桥接网卡 =====
 echo "请选择桥接网卡（默认 vmbr0）："
 AVAILABLE_BRIDGES=$(grep -o '^auto .*' /etc/network/interfaces | awk '{print $2}')
 select BRIDGE in $AVAILABLE_BRIDGES "手动输入"; do
@@ -127,7 +126,7 @@ if [[ "$CREATE_TYPE" == "LXC" ]]; then
   IP=$(pct exec $LXC_ID -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || true)
   echo "[✔] LXC 容器安装完成：ID=$LXC_ID, IP=${IP:-获取失败}"
 
-# ===== 创建虚拟机 VM =====
+# ===== 创建 VM =====
 else
   cd /tmp
   IMG="${OS_TYPE}-${VERSION}-x86-64-generic-ext4-combined.img"
@@ -142,63 +141,32 @@ else
   wget --no-verbose --show-progress -O "$IMG_GZ" "$IMG_URL" || { echo "[✘] 镜像下载失败"; exit 1; }
 
   echo "[*] 解压镜像..."
-  if gzip -df "$IMG_GZ" 2>&1 | grep -q "decompression OK"; then
-    echo "[✔] 解压完成（忽略警告）"
-  else
-    echo "[✘] 解压失败"
-    exit 1
-  fi
+  gzip -d "$IMG_GZ" || { echo "[✘] 解压失败"; exit 1; }
 
-  echo "[*] 删除旧 VM（如存在）..."
-  qm destroy $VM_ID --purge >/dev/null 2>&1 || true
-
-  echo "[*] 创建虚拟机..."
-  qm create $VM_ID --name $VM_NAME --machine q35 --memory $MEMORY --cores $CPUS \
+  VM_NAME="${OS_TYPE}-vm-${VERSION//./-}"
+  echo "[*] 创建 VM..."
+  qm create $VM_ID \
+    --name "$VM_NAME" \
+    --description "Auto created $OS_TYPE $VERSION" \
+    --machine q35 \
+    --cpu host \
+    --memory $MEMORY \
+    --cores $CPUS \
     --net0 virtio,bridge=$BRIDGE \
-    --scsihw virtio-scsi-single
+    --scsihw virtio-scsi-pci
 
   echo "[*] 导入磁盘..."
   qm importdisk $VM_ID "$IMG" $STORAGE --format qcow2
-  DISK_NAME=$(ls /var/lib/vz/images/$VM_ID/ | grep vm-$VM_ID-disk | head -n 1)
-  [ -z "$DISK_NAME" ] && DISK_NAME="vm-$VM_ID-disk-0.qcow2"
+  DISK_NAME=$(ls /var/lib/pve/images/$VM_ID/ | grep -E 'vm-[0-9]+-disk.*\.qcow2' | head -n 1)
 
-  echo "[*] 配置磁盘..."
-  qm set $VM_ID --sata0 $STORAGE:$VM_ID/$DISK_NAME
+  echo "[*] 配置磁盘启动..."
+  qm set $VM_ID --sata0 $STORAGE:vm-$VM_ID-disk-0.qcow2
   qm resize $VM_ID sata0 $DISK_SIZE
   qm set $VM_ID --boot order=sata0
   qm set $VM_ID --serial0 socket --vga serial0
+  qm set $VM_ID --onboot 1
   qm start $VM_ID
 
-  echo "[✔] OpenWrt ${VERSION} VM 创建完成 (ID: $VM_ID)"
-  echo "[✔] 使用配置: q35机型, VirtIO SCSI控制器, SATA磁盘接口"
-
-  echo "[*] 验证 VM 配置:"
-  qm config $VM_ID | grep -E "machine:|scsihw:|sata0:|vga:|boot:"
-
-  # 保存 OpenClash 安装脚本
-  cat << 'EOF' > /root/openclash-install.txt
-
-opkg update
-opkg install curl bash unzip iptables ipset coreutils coreutils-nohup luci luci-compat dnsmasq-full
-
-cd /tmp
-wget https://github.com/vernesong/OpenClash/releases/download/v0.45.128-beta/luci-app-openclash_0.45.128-beta_all.ipk
-opkg install ./luci-app-openclash_0.45.128-beta_all.ipk
-
-mkdir -p /etc/openclash
-curl -Lo /etc/openclash/clash.tar.gz https://cdn.jsdelivr.net/gh/vernesong/OpenClash@master/core/clash-linux-amd64.tar.gz
-tar -xzf /etc/openclash/clash.tar.gz -C /etc/openclash && rm /etc/openclash/clash.tar.gz
-
-/etc/init.d/openclash enable
-/etc/init.d/openclash start
-
-opkg install parted
-parted /dev/sda resizepart 2 100%
-resize2fs /dev/sda2
-
-EOF
-
-  echo "[✔] OpenClash 安装指南已保存至：/root/openclash-install.txt"
-  echo "你可以在 VM 中执行该文件内容完成配置。"
-
+  echo "[✔] OpenWrt 虚拟机创建完成 (ID: $VM_ID)"
+  qm config $VM_ID | grep -E "name|cpu|scsihw|boot|sata0|vga"
 fi
