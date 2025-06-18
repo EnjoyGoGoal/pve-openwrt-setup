@@ -142,7 +142,8 @@ else
   wget --no-verbose --show-progress -O "$IMG_GZ" "$IMG_URL" || { echo "[✘] 镜像下载失败"; exit 1; }
 
   echo "[*] 解压镜像..."
-  gzip -df "$IMG_GZ" || { echo "[✘] 解压失败"; exit 1; }
+  gzip -df "$IMG_GZ" || echo "[!] 解压可能有警告，但文件已生成"
+  [[ -f "$IMG" ]] || { echo "[✘] 解压后未找到 $IMG"; exit 1; }
 
   echo "[*] 删除旧 VM（如存在）..."
   qm destroy $VM_ID --purge >/dev/null 2>&1 || true
