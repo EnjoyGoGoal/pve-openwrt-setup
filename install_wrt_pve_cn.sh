@@ -155,7 +155,7 @@ else
     --cpu host --description "$VM_DESC"
 
   echo "[*] 导入磁盘..."
-  qm importdisk $VM_ID "$IMG" $STORAGE:$ROOTFS_SIZE --format qcow2
+  qm importdisk $VM_ID "$IMG" $STORAGE --format qcow2
   DISK_NAME=$(ls /var/lib/pve/images/$VM_ID/ | grep vm-$VM_ID-disk | head -n 1)
   [[ -z "$DISK_NAME" ]] && DISK_NAME="vm-$VM_ID-disk-0.qcow2"
 
