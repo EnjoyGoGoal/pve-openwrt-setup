@@ -80,7 +80,7 @@ if [[ "$CREATE_TYPE" == "VM" ]]; then
   [[ "$OS_TYPE" == "immortalwrt" ]] && VM_NAME="ImmortalWrt-${VERSION}" && VM_DESC="ImmortalWrt ${VERSION} 虚拟机"
 fi
 
-# ===== 创建 LXC 容器 =====
+# ===== 创建 LXC 或 VM =====
 if [[ "$CREATE_TYPE" == "LXC" ]]; then
   FILE_NAME="${OS_TYPE}-${VERSION}-lxc.tar.gz"
   [[ "$OS_TYPE" == "openwrt" ]] && DL_URL="https://downloads.openwrt.org/releases/${VERSION}/targets/x86/64/openwrt-${VERSION}-x86-64-rootfs.tar.gz"
@@ -95,7 +95,6 @@ if [[ "$CREATE_TYPE" == "LXC" ]]; then
     wget -O "$LOCAL_FILE" "$DL_URL" || { echo "[✘] 下载失败"; exit 1; }
   fi
 
-  # ===== 手动输入 LXC ID，默认值为 1001 =====
   read -p "请输入 LXC ID（默认 1001）: " user_lxc_id
   LXC_ID="${user_lxc_id:-1001}"
 
@@ -124,9 +123,7 @@ if [[ "$CREATE_TYPE" == "LXC" ]]; then
   sleep 5
   IP=$(pct exec "$LXC_ID" -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || true)
   echo "[✔] LXC 容器安装完成：ID=$LXC_ID, 名称=$LXC_NAME, IP=${IP:-获取失败}"
-fi
 
-# ===== 创建虚拟机 VM =====
 else
   cd /tmp
   IMG="${OS_TYPE}-${VERSION}-x86-64-generic-ext4-combined.img"
@@ -176,7 +173,7 @@ else
   echo "[*] 验证 VM 配置:"
   qm config $VM_ID | grep -E "machine:|scsihw:|cpu:|sata0:|vga:|boot:|description:"
 
-  # OpenClash 安装脚本
+  # OpenClash 安装脚本说明
   cat << 'EOF' > /root/openclash-install.txt
 
 opkg update
@@ -200,5 +197,4 @@ resize2fs /dev/sda2
 EOF
 
   echo "[✔] OpenClash 安装说明已保存到：/root/openclash-install.txt"
-
 fi
