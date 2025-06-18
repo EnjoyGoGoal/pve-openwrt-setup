@@ -152,8 +152,7 @@ else
   #qm destroy $VM_ID --purge >/dev/null 2>&1 || true
 
   echo "创建虚拟机..."
-  qm create $VM_ID --name $VM_NAME --machine q35 --memory $MEMORY --cores $CPUS \
-    --net0 virtio,bridge=$BRIDGE --scsihw virtio-scsi-single
+  qm create $VM_ID --name $VM_NAME --machine q35 --memory $MEMORY --cores $CPUS --net0 virtio,bridge=$BRIDGE --scsihw virtio-scsi-single
 
   echo "导入磁盘..."
   qm importdisk $VM_ID "$IMG" $STORAGE --format qcow2
