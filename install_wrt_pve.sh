@@ -4,7 +4,7 @@
 # Description: 一键安装 OpenWrt / ImmortalWrt 到 Proxmox VE（支持 LXC 和 VM）
 # Author: EnjoyGoGoal
 # Created: 2025-06-18
-# Version: 1.2
+# Version: 1.3
 # License: MIT
 # GitHub: https://github.com/EnjoyGoGoal
 # =============================================================================
@@ -51,7 +51,6 @@ select BRIDGE in $AVAILABLE_BRIDGES "手动输入"; do
   [[ "$BRIDGE" == "手动输入" ]] && read -p "请输入网桥名称: " BRIDGE
   [[ -z "$BRIDGE" ]] && BRIDGE="$DEFAULT_BRIDGE"
   break
-
 done
 
 # ===== 选择存储位置 =====
@@ -60,7 +59,7 @@ STORES=$(pvesm status -content images | awk 'NR>1 {print $1}')
 select STORAGE in $STORES "手动输入"; do
   [[ "$STORAGE" == "手动输入" ]] && read -p "请输入存储名称: " STORAGE
   [[ -n "$STORAGE" ]] && break
-  done
+done
 
 # ===== 创建 LXC 容器 =====
 if [[ "$CREATE_TYPE" == "LXC" ]]; then
