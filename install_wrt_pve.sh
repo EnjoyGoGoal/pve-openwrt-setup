@@ -12,7 +12,7 @@
 set -e
 
 # ===== 默认配置 =====
-DEFAULT_LXC_ID=1001
+LXC_ID=1001
 DEFAULT_VM_ID=2001
 CPUS=2
 MEMORY=4096
@@ -27,22 +27,28 @@ echo "[*] 检查网络连接..."
 ping -c 1 -W 2 1.1.1.1 &>/dev/null || { echo "[✘] 无法连接互联网，请检查网络"; exit 1; }
 
 # ===== 系统选择 =====
-echo "请选择系统类型 (默认 openwrt):"
-select OS_TYPE in "openwrt" "immortalwrt"; do [[ -n "$OS_TYPE" ]] && break; done || OS_TYPE="openwrt"
+echo "请选择系统类型（默认 OpenWrt）:"
+select OS_TYPE in "openwrt" "immortalwrt"; do
+  OS_TYPE=${OS_TYPE:-"openwrt"}  # 默认选择 openwrt
+  break
+done
 
 # ===== 获取最新版本 =====
 get_latest_version() {
   local base_url
   [[ "$1" == "openwrt" ]] && base_url="https://downloads.openwrt.org/releases/"
   [[ "$1" == "immortalwrt" ]] && base_url="https://downloads.immortalwrt.org/releases/"
-  curl -s "$base_url" | grep -oP '\\d+\\.\\d+\\.\\d+(?=/)' | sort -Vr | head -n 1
+  curl -s "$base_url" | grep -oP '\d+\.\d+\.\d+(?=/)' | sort -Vr | head -n 1
 }
 VERSION=$(get_latest_version "$OS_TYPE")
 echo "[✔] 最新版本为：$VERSION"
 
 # ===== 类型选择 =====
-echo "请选择创建类型 (默认 LXC):"
-select CREATE_TYPE in "LXC" "VM"; do [[ -n "$CREATE_TYPE" ]] && break; done || CREATE_TYPE="LXC"
+echo "请选择创建类型（默认 LXC）:"
+select CREATE_TYPE in "LXC" "VM"; do
+  CREATE_TYPE=${CREATE_TYPE:-"LXC"}  # 默认选择 LXC
+  break
+done
 
 # ===== 存储池选择 =====
 echo "请选择存储池（默认 local）:"
@@ -52,11 +58,11 @@ select STORAGE in "local" "local-lvm" "other"; do
 done
 
 # ===== 网桥选择 =====
-echo "请选择桥接网卡（默认 vmbr0）："
+echo "请选择桥接网卡（默认 vmbr0）:"
 AVAILABLE_BRIDGES=$(grep -o '^auto .*' /etc/network/interfaces | awk '{print $2}')
 select BRIDGE in $AVAILABLE_BRIDGES "手动输入"; do
   [[ "$BRIDGE" == "手动输入" ]] && read -p "请输入网桥名称: " BRIDGE
-  [[ -z "$BRIDGE" ]] && BRIDGE="$DEFAULT_BRIDGE"
+  [[ -z "$BRIDGE" ]] && BRIDGE="$DEFAULT_BRIDGE"  # 默认选择 vmbr0
   break
 done
 
@@ -89,21 +95,14 @@ if [[ "$CREATE_TYPE" == "LXC" ]]; then
     wget -O "$LOCAL_FILE" "$DL_URL" || { echo "[✘] 下载失败"; exit 1; }
   fi
 
-  # ===== 手动输入 LXC ID，默认值为 1001 =====
-  read -p "请输入 LXC ID（默认 1001）: " user_lxc_id
-  LXC_ID="${user_lxc_id:-1001}"
-
-  if pct status "$LXC_ID" &>/dev/null; then
+  if pct status $LXC_ID &>/dev/null; then
     echo "[!] LXC ID $LXC_ID 已存在，请手动处理或更换 ID"
     exit 1
   fi
 
-  # ===== 容器名称与 VM 名称保持一致 =====
-  LXC_NAME="${OS_TYPE}-${VERSION}"
-
   echo "[*] 创建 LXC 容器..."
-  pct create "$LXC_ID" "$LOCAL_FILE" \
-    --hostname "$LXC_NAME" \
+  pct create $LXC_ID "$LOCAL_FILE" \
+    --hostname "${OS_TYPE}-lxc" \
     --cores $CPUS \
     --memory $MEMORY \
     --swap 0 \
@@ -114,12 +113,11 @@ if [[ "$CREATE_TYPE" == "LXC" ]]; then
     --features nesting=1 \
     --unprivileged 0
 
-  pct start "$LXC_ID"
-  pct set "$LXC_ID" --onboot 1
+  pct start $LXC_ID
+  pct set $LXC_ID --onboot 1
   sleep 5
-  IP=$(pct exec "$LXC_ID" -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || true)
-  echo "[✔] LXC 容器安装完成：ID=$LXC_ID, 名称=$LXC_NAME, IP=${IP:-获取失败}"
-fi
+  IP=$(pct exec $LXC_ID -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || true)
+  echo "[✔] LXC 容器安装完成：ID=$LXC_ID, IP=${IP:-获取失败}"
 
 # ===== 创建虚拟机 VM =====
 else
