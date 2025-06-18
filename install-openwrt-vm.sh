@@ -19,7 +19,7 @@ gunzip ${IMG}.gz
 qm destroy $VM_ID --purge >/dev/null 2>&1
 
 # 创建虚拟机（仅基本配置）
-qm create $VM_ID --name $VM_NAME --memory $MEMORY --cores $CPUS --net0 virtio,bridge=$BRIDGE
+qm create $VM_ID --name $VM_NAME -machine q35 --memory $MEMORY --cores $CPUS --net0 virtio,bridge=$BRIDGE
 
 # 导入磁盘到存储
 qm importdisk $VM_ID $IMG $STORAGE --format qcow2
