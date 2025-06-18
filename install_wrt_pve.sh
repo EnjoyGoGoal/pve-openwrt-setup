@@ -54,10 +54,25 @@ done
 
 # ===== 存储选择 =====
 echo "请选择存储位置（例如 local、local-lvm）："
-STORES=$(pvesm status -content images | awk 'NR>1 {print $1}')
-select STORAGE in $STORES "手动输入"; do
-  [[ "$STORAGE" == "手动输入" ]] && read -p "请输入存储名称: " STORAGE
-  [[ -n "$STORAGE" ]] && break
+
+# 构建默认选项
+AVAILABLE_STORES=$(pvesm status -content images | awk 'NR>1 {print $1}' | sort -u)
+DEFAULT_STORAGE="local"
+
+# 手动构建选项列表
+PS3="请输入数字选择（默认 ${DEFAULT_STORAGE}）: "
+select STORAGE in $AVAILABLE_STORES "手动输入"; do
+  if [[ "$REPLY" == "" ]]; then
+    STORAGE="$DEFAULT_STORAGE"
+    break
+  elif [[ "$STORAGE" == "手动输入" ]]; then
+    read -p "请输入存储名称: " STORAGE
+    break
+  elif [[ -n "$STORAGE" ]]; then
+    break
+  else
+    echo "[!] 请输入有效选项"
+  fi
 done
 
 # ===== 获取 VM ID =====
