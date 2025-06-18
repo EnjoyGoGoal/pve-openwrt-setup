@@ -52,9 +52,6 @@ select BRIDGE in $AVAILABLE_BRIDGES "手动输入"; do
   break
 done
 
-# ════════════════════════════
-#  函数：选择存储池
-# ════════════════════════════
 select_storage() {
     echo "请选择存储池："
     echo "1) local-lvm"
