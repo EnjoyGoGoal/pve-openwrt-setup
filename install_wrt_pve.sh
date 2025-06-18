@@ -55,25 +55,32 @@ done
 # ===== 存储选择 =====
 echo "请选择存储位置（例如 local、local-lvm）："
 
-# 构建默认选项
-AVAILABLE_STORES=$(pvesm status -content images | awk 'NR>1 {print $1}' | sort -u)
+AVAILABLE_STORES=$(pvesm status -content images | awk 'NR>1 {print $1}' | sort -u | uniq)
+OPTIONS=($AVAILABLE_STORES "手动输入")
 DEFAULT_STORAGE="local"
 
-# 手动构建选项列表
-PS3="请输入数字选择（默认 ${DEFAULT_STORAGE}）: "
-select STORAGE in $AVAILABLE_STORES "手动输入"; do
-  if [[ "$REPLY" == "" ]]; then
-    STORAGE="$DEFAULT_STORAGE"
-    break
-  elif [[ "$STORAGE" == "手动输入" ]]; then
-    read -p "请输入存储名称: " STORAGE
-    break
-  elif [[ -n "$STORAGE" ]]; then
-    break
-  else
-    echo "[!] 请输入有效选项"
-  fi
+# 打印选项菜单
+i=1
+for opt in "${OPTIONS[@]}"; do
+  echo "$i) $opt"
+  ((i++))
 done
+
+read -p "请输入数字选择（默认 ${DEFAULT_STORAGE}）: " store_index
+
+if [[ -z "$store_index" ]]; then
+  STORAGE="$DEFAULT_STORAGE"
+elif [[ "$store_index" =~ ^[0-9]+$ ]] && (( store_index >= 1 && store_index <= ${#OPTIONS[@]} )); then
+  STORAGE="${OPTIONS[$((store_index - 1))]}"
+  if [[ "$STORAGE" == "手动输入" ]]; then
+    read -p "请输入存储名称: " STORAGE
+  fi
+else
+  echo "[!] 无效输入，使用默认：${DEFAULT_STORAGE}"
+  STORAGE="$DEFAULT_STORAGE"
+fi
+
+echo "[✔] 使用存储：$STORAGE"
 
 # ===== 获取 VM ID =====
 get_vm_id() {
