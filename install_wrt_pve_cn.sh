@@ -3,7 +3,7 @@
 # Script Name: install_wrt_pve_cn.sh
 # Description: 一键安装 OpenWrt / ImmortalWrt 到 Proxmox VE（支持 LXC 和 VM）
 # Author: EnjoyGoGoal
-# Version: 1.6
+# Version: 1.0
 # Updated: 2025-06-18
 # License: MIT
 # GitHub: https://github.com/EnjoyGoGoal
