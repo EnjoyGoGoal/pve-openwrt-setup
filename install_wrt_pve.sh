@@ -63,27 +63,8 @@ done
 # ===== 获取 VM ID =====
 get_vm_id() {
   local vm_id=$DEFAULT_VM_ID
-  if qm status $vm_id >/dev/null 2>&1; then
-    read -p "[!] 默认 VM ID $vm_id 已存在，是否继续使用？[Y/n]: " choice
-    case "$choice" in
-      n|N)
-        while true; do
-          read -p "请输入新的 VM ID（100-999）: " vm_id
-          if [[ "$vm_id" =~ ^[1-9][0-9]{2}$ ]] && ! qm status "$vm_id" &>/dev/null; then
-            VM_ID=$vm_id
-            break
-          else
-            echo "[!] 无效或已存在的 VM ID"
-          fi
-        done
-        ;;
-      *)
-        VM_ID=$vm_id
-        ;;
-    esac
-  else
-    VM_ID=$vm_id
-  fi
+  read -p "[*] 请提供 VM ID（默认为 $vm_id）： " vm_id_input
+  VM_ID=${vm_id_input:-$vm_id}
 }
 [[ "$CREATE_TYPE" == "VM" ]] && get_vm_id
 
