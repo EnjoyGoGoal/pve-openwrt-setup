@@ -7,6 +7,7 @@ STORAGE="local"
 BRIDGE="vmbr0"
 MEMORY="4096"
 CPUS="2"
+DISK_SIZE="2G"  # 设置所需的磁盘大小
 
 cd /tmp
 IMG="openwrt-${OPENWRT_VERSION}-x86-64-generic-ext4-combined.img"
@@ -26,11 +27,15 @@ qm importdisk $VM_ID $IMG $STORAGE --format qcow2
 # 获取实际创建的磁盘名称
 DISK_NAME=$(ls /var/lib/vz/images/$VM_ID/ | grep vm-$VM_ID-disk | head -n 1)
 if [ -z "$DISK_NAME" ]; then
-    DISK_NAME="vm-$VM_ID-disk-0"
+    DISK_NAME="vm-$VM_ID-disk-0.qcow2"
 fi
 
 # 附加磁盘为SATA设备
 qm set $VM_ID --sata0 $STORAGE:$VM_ID/$DISK_NAME
+
+# 调整磁盘大小
+echo "调整磁盘大小至 $DISK_SIZE..."
+qm resize $VM_ID sata0 $DISK_SIZE
 
 # 设置启动顺序和其他参数
 qm set $VM_ID --boot order=sata0
@@ -40,10 +45,12 @@ qm set $VM_ID --serial0 socket --vga serial0
 qm start $VM_ID
 
 echo "[✔] OpenWrt ${OPENWRT_VERSION} VM 创建完成"
+echo "[✔] 磁盘大小已调整为 $DISK_SIZE"
 
-# 验证磁盘附加情况
-echo "验证磁盘附加情况:"
+# 验证磁盘大小
+echo "验证磁盘大小:"
 qm config $VM_ID | grep sata0
+qemu-img info /var/lib/vz/images/$VM_ID/$DISK_NAME | grep "virtual size"
 
 # 自动安装 OpenClash（首次进入系统后执行）
 cat << EOF
