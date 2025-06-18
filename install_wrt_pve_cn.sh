@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# Script Name: create_wrt_pve.sh
+# Script Name: install_wrt_pve_cn.sh
 # Description: 一键安装 OpenWrt / ImmortalWrt 到 Proxmox VE（支持 LXC 和 VM）
 # Author: EnjoyGoGoal
 # Version: 1.6
