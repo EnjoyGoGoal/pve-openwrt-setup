@@ -145,7 +145,8 @@ else
   wget --no-verbose --show-progress -O "$IMG_GZ" "$IMG_URL" || { echo "[✘] 镜像下载失败，请检查网络连接或镜像地址"; exit 1; }
 
   echo "正在解压镜像..."
-  gzip -df "$IMG_GZ" || { echo "[✘] 解压失败，请检查下载的镜像文件"; exit 1; }
+  #gzip -df "$IMG_GZ" || { echo "[✘] 解压失败，请检查下载的镜像文件"; exit 1; }
+  gzip -df "$IMG_GZ"  # -d 解压，-f 强制覆盖
 
   echo "清理旧虚拟机配置 (ID: $VM_ID)..."
   qm destroy $VM_ID --purge >/dev/null 2>&1 || true
