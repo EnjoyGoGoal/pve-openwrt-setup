@@ -45,11 +45,9 @@ echo "请选择创建类型 (默认 LXC):"
 select CREATE_TYPE in "LXC" "VM"; do [[ -n "$CREATE_TYPE" ]] && break; done || CREATE_TYPE="LXC"
 
 # ===== 存储池选择 =====
-echo "请选择存储池（默认 local）："
-AVAILABLE_STORAGES=$(pvesm status | awk 'NR>1{print $1}')
-select STORAGE in $AVAILABLE_STORAGES "手动输入"; do
-  [[ "$STORAGE" == "手动输入" ]] && read -p "请输入存储名称: " STORAGE
-  [[ -z "$STORAGE" ]] && STORAGE="$DEFAULT_STORAGE"
+echo "请选择存储池（默认 local）:"
+select STORAGE in "local" "local-lvm" "other"; do
+  STORAGE=${STORAGE:-"local"}  # 默认选择 local
   break
 done
 
@@ -182,7 +180,7 @@ else
   qm set $VM_ID --sata0 $STORAGE:$VM_ID/$DISK_NAME
   qm resize $VM_ID sata0 $DISK_SIZE
   qm set $VM_ID --boot order=sata0
-  qm set $VM_ID --serial0 socket --vga std
+  qm set $VM_ID --serial0 socket
   qm set $VM_ID --onboot 1
   qm start $VM_ID
 
@@ -191,4 +189,30 @@ else
 
   echo "[*] 验证 VM 配置:"
   qm config $VM_ID | grep -E "machine:|scsihw:|cpu:|sata0:|vga:|boot:|description:"
+
+  # OpenClash 安装脚本
+  cat << 'EOF' > /root/openclash-install.txt
+
+opkg update
+opkg install curl bash unzip iptables ipset coreutils coreutils-nohup luci luci-compat dnsmasq-full
+
+cd /tmp
+wget https://github.com/vernesong/OpenClash/releases/download/v0.45.128-beta/luci-app-openclash_0.45.128-beta_all.ipk
+opkg install ./luci-app-openclash_0.45.128-beta_all.ipk
+
+mkdir -p /etc/openclash
+curl -Lo /etc/openclash/clash.tar.gz https://cdn.jsdelivr.net/gh/vernesong/OpenClash@master/core/clash-linux-amd64.tar.gz
+tar -xzf /etc/openclash/clash.tar.gz -C /etc/openclash && rm /etc/openclash/clash.tar.gz
+
+/etc/init.d/openclash enable
+/etc/init.d/openclash start
+
+opkg install parted
+parted /dev/sda resizepart 2 100%
+resize2fs /dev/sda2
+
+EOF
+
+  echo "[✔] OpenClash 安装说明已保存到：/root/openclash-install.txt"
+
 fi
