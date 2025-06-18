@@ -127,7 +127,6 @@ if [[ "$CREATE_TYPE" == "LXC" ]]; then
 fi
 
 # ===== 创建虚拟机 VM =====
-else
   cd /tmp
   IMG="${OS_TYPE}-${VERSION}-x86-64-generic-ext4-combined.img"
   IMG_GZ="${IMG}.gz"
