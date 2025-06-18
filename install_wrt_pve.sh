@@ -136,8 +136,8 @@ else
   cd /tmp
   IMG="${OS_TYPE}-${VERSION}-x86-64-generic-ext4-combined.img"
   IMG_GZ="${IMG}.gz"
-  BASE_DOMAIN="$( [[ "$OS_TYPE" == "openwrt" ]] && echo "downloads.openwrt" || echo "downloads.immortalwrt" )"
-  IMG_URL="https://${BASE_DOMAIN}.org/releases/${VERSION}/targets/x86/64/${IMG_GZ}"
+  BASE_DOMAIN="$( [[ "$OS_TYPE" == "openwrt" ]] && echo "downloads.openwrt.org" || echo "downloads.immortalwrt.org" )"
+  IMG_URL="https://${BASE_DOMAIN}/releases/${VERSION}/targets/x86/64/${IMG_GZ}"
 
   echo "清理旧文件..."
   rm -f "$IMG_GZ" "$IMG"
