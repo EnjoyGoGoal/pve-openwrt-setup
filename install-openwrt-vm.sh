@@ -15,33 +15,35 @@ IMG_GZ="${IMG}.gz"
 IMG_URL="https://downloads.openwrt.org/releases/${OPENWRT_VERSION}/targets/x86/64/${IMG_GZ}"
 
 # 清理旧文件（如果存在）
-if [ -f "$IMG_GZ" ]; then
-    echo "发现已存在的压缩文件 $IMG_GZ，正在删除..."
-    rm -f "$IMG_GZ"
-fi
+cleanup_files() {
+    echo "清理旧文件..."
+    [ -f "$IMG_GZ" ] && rm -f "$IMG_GZ" && echo "已删除 $IMG_GZ"
+    [ -f "$IMG" ] && rm -f "$IMG" && echo "已删除 $IMG"
+}
 
-if [ -f "$IMG" ]; then
-    echo "发现已存在的镜像文件 $IMG，正在删除..."
-    rm -f "$IMG"
-fi
+# 确保清理文件
+cleanup_files
 
-# 下载镜像
+# 下载镜像（强制覆盖）
 echo "正在下载 OpenWrt 镜像..."
-wget -O "$IMG_GZ" "$IMG_URL"
+wget --no-verbose --show-progress -O "$IMG_GZ" "$IMG_URL" 2>&1 | grep -E "100%|保存"
 
-# 解压镜像（自动替换已存在文件）
+# 解压镜像（强制覆盖已存在文件）
 echo "正在解压镜像..."
-gunzip -f "$IMG_GZ"  # -f 选项强制覆盖已存在的文件
+gzip -df "$IMG_GZ"  # -d 解压，-f 强制覆盖
 
 # 确保虚拟机不存在
-qm destroy $VM_ID --purge >/dev/null 2>&1
+echo "清理旧虚拟机配置..."
+qm destroy $VM_ID --purge >/dev/null 2>&1 && echo "已删除 VM $VM_ID"
 
 # 创建虚拟机（使用q35机型）
+echo "创建虚拟机..."
 qm create $VM_ID --name $VM_NAME --machine q35 --memory $MEMORY --cores $CPUS \
     --net0 virtio,bridge=$BRIDGE \
     --scsihw virtio-scsi-single  # 使用VirtIO SCSI single控制器
 
 # 导入磁盘到存储
+echo "导入磁盘..."
 qm importdisk $VM_ID "$IMG" $STORAGE --format qcow2
 
 # 获取实际创建的磁盘名称
@@ -51,6 +53,7 @@ if [ -z "$DISK_NAME" ]; then
 fi
 
 # 附加磁盘为SATA设备
+echo "附加磁盘..."
 qm set $VM_ID --sata0 $STORAGE:$VM_ID/$DISK_NAME
 
 # 调整磁盘大小
@@ -62,6 +65,7 @@ qm set $VM_ID --boot order=sata0
 qm set $VM_ID --serial0 socket --vga serial0  # 使用串口控制台
 
 # 启动虚拟机
+echo "启动虚拟机..."
 qm start $VM_ID
 
 echo "[✔] OpenWrt ${OPENWRT_VERSION} VM 创建完成"
