@@ -17,8 +17,8 @@ gunzip ${IMG}.gz
 
 qm create $VM_ID --name $VM_NAME --memory $MEMORY --cores $CPUS --net0 virtio,bridge=$BRIDGE
 qm importdisk $VM_ID $IMG $STORAGE
-qm set $VM_ID --scsihw virtio-scsi-pci --scsi0 $STORAGE:vm-${VM_ID}-disk-0
-qm set $VM_ID --boot order=scsi0
+qm set $VM_ID --sata0 $STORAGE:vm-${VM_ID}-disk-0  # 修改为SATA接口
+qm set $VM_ID --boot order=sata0                  # 启动顺序改为sata0
 qm set $VM_ID --serial0 socket --vga serial0
 qm start $VM_ID
 
