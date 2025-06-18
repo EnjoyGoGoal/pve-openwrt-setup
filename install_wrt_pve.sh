@@ -52,20 +52,23 @@ select BRIDGE in $AVAILABLE_BRIDGES "手动输入"; do
   break
 done
 
-# ===== 选择存储位置 =====
-echo "请选择存储位置："
-STORES=$(pvesm status -content images | awk 'NR>1 {print $1}')
-select STORAGE in $STORES "手动输入"; do
-  [[ "$STORAGE" == "手动输入" ]] && read -p "请输入存储名称: " STORAGE
-  [[ -n "$STORAGE" ]] && break
-done
-
-# ===== 创建 LXC 容器 =====
-if [[ "$CREATE_TYPE" == "LXC" ]]; then
-  if pct status $LXC_ID &>/dev/null; then
-    echo "[!] LXC ID $LXC_ID 已存在，请手动处理或更换 ID"
-    exit 1
-  fi
+# ════════════════════════════
+#  函数：选择存储池
+# ════════════════════════════
+select_storage() {
+    echo "请选择存储池："
+    echo "1) local-lvm"
+    echo "2) local"
+    echo "3) 其它"
+    read -p "存储池编号 [1]: " sc; sc=${sc:-1}
+    case "$sc" in
+        1) STORAGE="local-lvm" ;;
+        2) STORAGE="local"    ;;
+        3) read -p "请输入自定义存储池名称: " STORAGE ;;
+        *) echo "无效选择" && exit 1 ;;
+    esac
+    echo "→ 存储池: $STORAGE"
+}
 
 # ===== 获取 VM ID =====
 get_vm_id() {
