@@ -7,7 +7,6 @@ STORAGE="local"
 BRIDGE="vmbr0"
 MEMORY="4096"
 CPUS="2"
-DISK_SIZE="2G"  # 修改为带单位的磁盘大小
 
 cd /tmp
 IMG="openwrt-${OPENWRT_VERSION}-x86-64-generic-ext4-combined.img"
@@ -15,20 +14,25 @@ IMG_URL="https://downloads.openwrt.org/releases/${OPENWRT_VERSION}/targets/x86/6
 wget -O ${IMG}.gz ${IMG_URL}
 gunzip ${IMG}.gz
 
-# 创建虚拟机时直接添加磁盘
-qm create $VM_ID --name $VM_NAME --memory $MEMORY --cores $CPUS \
-    --net0 virtio,bridge=$BRIDGE \
-    --sata0 $STORAGE:$DISK_SIZE  # 创建时直接添加SATA磁盘
+# 创建虚拟机（不带磁盘）
+qm create $VM_ID --name $VM_NAME --memory $MEMORY --cores $CPUS --net0 virtio,bridge=$BRIDGE
 
-# 导入磁盘到现有磁盘位置
-qm importdisk $VM_ID $IMG $STORAGE -format qcow2
+# 导入磁盘到存储
+qm importdisk $VM_ID $IMG $STORAGE --format qcow2
 
-# 附加导入的磁盘到SATA接口
+# 附加磁盘为SATA设备
 qm set $VM_ID --sata0 $STORAGE:vm-${VM_ID}-disk-0
 
 # 设置启动顺序和其他参数
 qm set $VM_ID --boot order=sata0
 qm set $VM_ID --serial0 socket --vga serial0
+qm set $VM_ID --ide2 $STORAGE:cloudinit  # 添加必要的cloudinit驱动器
+
+# 调整磁盘大小（如果需要）
+# DISK_SIZE="2G"
+# qm resize $VM_ID sata0 $DISK_SIZE
+
+# 启动虚拟机
 qm start $VM_ID
 
 echo "[✔] OpenWrt ${OPENWRT_VERSION} VM 创建完成"
