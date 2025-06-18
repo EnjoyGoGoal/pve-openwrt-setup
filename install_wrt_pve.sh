@@ -2,16 +2,19 @@
 # =============================================================================
 # Script Name: create_wrt_pve.sh
 # Description: 一键安装 OpenWrt / ImmortalWrt 到 Proxmox VE（支持 LXC 和 VM）
-# Version: 1.4
 # Author: EnjoyGoGoal
+# Version: 1.4
+# Updated: 2025-06-18
 # License: MIT
+# GitHub: https://github.com/EnjoyGoGoal
 # =============================================================================
 
 set -e
 
+# ===== 默认配置 =====
 LXC_ID=1001
-VM_ID=2001
 VM_NAME="openwrt-vm"
+DEFAULT_VM_ID=2001
 CPUS=2
 MEMORY=4096
 ROOTFS_SIZE=2
@@ -19,12 +22,15 @@ DISK_SIZE="2G"
 DEFAULT_BRIDGE="vmbr0"
 CACHE_DIR="/var/lib/vz/template/cache"
 
+# ===== 检查网络 =====
 echo "[*] 检查网络连接..."
-ping -c 1 -W 2 1.1.1.1 &>/dev/null || { echo "[✘] 无法连接互联网"; exit 1; }
+ping -c 1 -W 2 1.1.1.1 &>/dev/null || { echo "[✘] 无法连接互联网，请检查网络"; exit 1; }
 
+# ===== 系统选择 =====
 echo "请选择系统类型:"
 select OS_TYPE in "openwrt" "immortalwrt"; do [[ -n "$OS_TYPE" ]] && break; done
 
+# ===== 获取最新版本 =====
 get_latest_version() {
   local base_url
   [[ "$1" == "openwrt" ]] && base_url="https://downloads.openwrt.org/releases/"
@@ -32,11 +38,13 @@ get_latest_version() {
   curl -s "$base_url" | grep -oP '\d+\.\d+\.\d+(?=/)' | sort -Vr | head -n 1
 }
 VERSION=$(get_latest_version "$OS_TYPE")
-echo "[✔] 最新版本为 $VERSION"
+echo "[✔] 最新版本为：$VERSION"
 
+# ===== 类型选择 =====
 echo "请选择创建类型:"
 select CREATE_TYPE in "LXC" "VM"; do [[ -n "$CREATE_TYPE" ]] && break; done
 
+# ===== 网桥选择 =====
 echo "请选择桥接网卡（默认 vmbr0）："
 AVAILABLE_BRIDGES=$(grep -o '^auto .*' /etc/network/interfaces | awk '{print $2}')
 select BRIDGE in $AVAILABLE_BRIDGES "手动输入"; do
@@ -45,6 +53,7 @@ select BRIDGE in $AVAILABLE_BRIDGES "手动输入"; do
   break
 done
 
+# ===== 存储选择 =====
 echo "请选择存储位置："
 STORES=$(pvesm status -content images | awk 'NR>1 {print $1}')
 select STORAGE in $STORES "手动输入"; do
@@ -52,7 +61,34 @@ select STORAGE in $STORES "手动输入"; do
   [[ -n "$STORAGE" ]] && break
 done
 
-# === LXC 创建流程 ===
+# ===== 获取 VM ID =====
+get_vm_id() {
+  local vm_id=$DEFAULT_VM_ID
+  if qm status $vm_id >/dev/null 2>&1; then
+    read -p "[!] 默认 VM ID $vm_id 已存在，是否继续使用？[Y/n]: " choice
+    case "$choice" in
+      n|N)
+        while true; do
+          read -p "请输入新的 VM ID（100-999）: " vm_id
+          if [[ "$vm_id" =~ ^[1-9][0-9]{2}$ ]] && ! qm status "$vm_id" &>/dev/null; then
+            VM_ID=$vm_id
+            break
+          else
+            echo "[!] 无效或已存在的 VM ID"
+          fi
+        done
+        ;;
+      *)
+        VM_ID=$vm_id
+        ;;
+    esac
+  else
+    VM_ID=$vm_id
+  fi
+}
+[[ "$CREATE_TYPE" == "VM" ]] && get_vm_id
+
+# ===== 创建 LXC 容器 =====
 if [[ "$CREATE_TYPE" == "LXC" ]]; then
   FILE_NAME="${OS_TYPE}-${VERSION}-lxc.tar.gz"
   [[ "$OS_TYPE" == "openwrt" ]] && DL_URL="https://downloads.openwrt.org/releases/${VERSION}/targets/x86/64/openwrt-${VERSION}-x86-64-rootfs.tar.gz"
@@ -61,14 +97,14 @@ if [[ "$CREATE_TYPE" == "LXC" ]]; then
 
   mkdir -p "$CACHE_DIR"
   if [[ -f "$LOCAL_FILE" ]]; then
-    echo "[✔] 使用本地缓存镜像：$LOCAL_FILE"
+    echo "[✔] 镜像已存在：$LOCAL_FILE"
   else
     echo "[↓] 下载镜像..."
     wget -O "$LOCAL_FILE" "$DL_URL" || { echo "[✘] 下载失败"; exit 1; }
   fi
 
   if pct status $LXC_ID &>/dev/null; then
-    echo "[!] LXC ID $LXC_ID 已存在，请更换 ID"
+    echo "[!] LXC ID $LXC_ID 已存在，请手动处理或更换 ID"
     exit 1
   fi
 
@@ -83,79 +119,86 @@ if [[ "$CREATE_TYPE" == "LXC" ]]; then
     --ostype unmanaged \
     --arch amd64 \
     --features nesting=1 \
-    --unprivileged 0 \
-    --description "${OS_TYPE} ${VERSION}"
+    --unprivileged 0
 
   pct start $LXC_ID
   pct set $LXC_ID --onboot 1
   sleep 5
-  IP=$(pct exec $LXC_ID -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
-  echo "[✔] LXC 容器完成：ID=$LXC_ID, IP=$IP"
+  IP=$(pct exec $LXC_ID -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || true)
+  echo "[✔] LXC 容器安装完成：ID=$LXC_ID, IP=${IP:-获取失败}"
 
-# === VM 创建流程 ===
+# ===== 创建虚拟机 VM =====
 else
-  IMG="openwrt-${VERSION}-x86-64-generic-ext4-combined.img"
-  [[ "$OS_TYPE" == "immortalwrt" ]] && IMG="immortalwrt-${VERSION}-x86-64-generic-ext4-combined.img"
+  cd /tmp
+  IMG="${OS_TYPE}-${VERSION}-x86-64-generic-ext4-combined.img"
   IMG_GZ="${IMG}.gz"
   BASE_DOMAIN="$( [[ "$OS_TYPE" == "openwrt" ]] && echo "downloads.openwrt.org" || echo "downloads.immortalwrt.org" )"
   IMG_URL="https://${BASE_DOMAIN}/releases/${VERSION}/targets/x86/64/${IMG_GZ}"
 
-  cd /tmp
-  rm -f "$IMG" "$IMG_GZ"
+  echo "[*] 清理旧镜像文件..."
+  rm -f "$IMG_GZ" "$IMG"
 
   echo "[↓] 下载镜像..."
   wget --no-verbose --show-progress -O "$IMG_GZ" "$IMG_URL" || { echo "[✘] 镜像下载失败"; exit 1; }
 
   echo "[*] 解压镜像..."
-  gunzip -c "$IMG_GZ" > "$IMG" || { echo "[✘] 解压失败"; exit 1; }
+  if gzip -df "$IMG_GZ" 2>&1 | grep -q "decompression OK"; then
+    echo "[✔] 解压完成（忽略警告）"
+  else
+    echo "[✘] 解压失败"
+    exit 1
+  fi
 
-  echo "[*] 创建 VM..."
-  qm create $VM_ID \
-    --name $VM_NAME \
-    --description "${OS_TYPE} ${VERSION}" \
-    --machine q35 \
-    --memory $MEMORY \
-    --cores $CPUS \
+  echo "[*] 删除旧 VM（如存在）..."
+  qm destroy $VM_ID --purge >/dev/null 2>&1 || true
+
+  echo "[*] 创建虚拟机..."
+  qm create $VM_ID --name $VM_NAME --machine q35 --memory $MEMORY --cores $CPUS \
     --net0 virtio,bridge=$BRIDGE \
     --scsihw virtio-scsi-single
 
   echo "[*] 导入磁盘..."
-  qm importdisk $VM_ID "$IMG" "$STORAGE" --format qcow2
+  qm importdisk $VM_ID "$IMG" $STORAGE --format qcow2
+  DISK_NAME=$(ls /var/lib/vz/images/$VM_ID/ | grep vm-$VM_ID-disk | head -n 1)
+  [ -z "$DISK_NAME" ] && DISK_NAME="vm-$VM_ID-disk-0.qcow2"
 
-  if [[ "$STORAGE" =~ local-lvm ]]; then
-    DISK="scsi0"
-    qm set $VM_ID --$DISK $STORAGE:vm-$VM_ID-disk-0
-  else
-    DISK="sata0"
-    DISK_NAME=$(ls /var/lib/vz/images/$VM_ID/ | grep vm-$VM_ID-disk | head -n 1)
-    qm set $VM_ID --$DISK $STORAGE:$VM_ID/$DISK_NAME
-    qm resize $VM_ID $DISK $DISK_SIZE
-  fi
-
-  qm set $VM_ID --boot order=$DISK --serial0 socket --vga serial0
+  echo "[*] 配置磁盘..."
+  qm set $VM_ID --sata0 $STORAGE:$VM_ID/$DISK_NAME
+  qm resize $VM_ID sata0 $DISK_SIZE
+  qm set $VM_ID --boot order=sata0
+  qm set $VM_ID --serial0 socket --vga serial0
   qm start $VM_ID
 
-  echo "[✔] VM 创建完成: ID=$VM_ID"
-  echo "[✔] 配置验证:"
-  qm config $VM_ID | grep -E "machine:|scsihw:|${DISK}:|boot:|description:"
+  echo "[✔] OpenWrt ${VERSION} VM 创建完成 (ID: $VM_ID)"
+  echo "[✔] 使用配置: q35机型, VirtIO SCSI控制器, SATA磁盘接口"
 
-  cat << EOF
+  echo "[*] 验证 VM 配置:"
+  qm config $VM_ID | grep -E "machine:|scsihw:|sata0:|vga:|boot:"
 
-下一步建议：
-1. 登录系统后安装 OpenClash：
-   opkg update
-   opkg install curl bash unzip iptables ipset coreutils-nohup luci luci-compat dnsmasq-full
-   cd /tmp
-   wget https://github.com/vernesong/OpenClash/releases/download/v0.45.128-beta/luci-app-openclash_0.45.128-beta_all.ipk
-   opkg install ./luci-app-openclash_0.45.128-beta_all.ipk
+  # 保存 OpenClash 安装脚本
+  cat << 'EOF' > /root/openclash-install.txt
 
-2. 安装 clash 核心：
-   mkdir -p /etc/openclash
-   curl -Lo /etc/openclash/clash.tar.gz https://cdn.jsdelivr.net/gh/vernesong/OpenClash@master/core/clash-linux-amd64.tar.gz
-   tar -xzf /etc/openclash/clash.tar.gz -C /etc/openclash && rm /etc/openclash/clash.tar.gz
-   /etc/init.d/openclash enable
-   /etc/init.d/openclash start
+opkg update
+opkg install curl bash unzip iptables ipset coreutils coreutils-nohup luci luci-compat dnsmasq-full
+
+cd /tmp
+wget https://github.com/vernesong/OpenClash/releases/download/v0.45.128-beta/luci-app-openclash_0.45.128-beta_all.ipk
+opkg install ./luci-app-openclash_0.45.128-beta_all.ipk
+
+mkdir -p /etc/openclash
+curl -Lo /etc/openclash/clash.tar.gz https://cdn.jsdelivr.net/gh/vernesong/OpenClash@master/core/clash-linux-amd64.tar.gz
+tar -xzf /etc/openclash/clash.tar.gz -C /etc/openclash && rm /etc/openclash/clash.tar.gz
+
+/etc/init.d/openclash enable
+/etc/init.d/openclash start
+
+opkg install parted
+parted /dev/sda resizepart 2 100%
+resize2fs /dev/sda2
 
 EOF
+
+  echo "[✔] OpenClash 安装指南已保存至：/root/openclash-install.txt"
+  echo "你可以在 VM 中执行该文件内容完成配置。"
 
 fi
