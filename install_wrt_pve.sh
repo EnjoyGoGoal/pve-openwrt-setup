@@ -142,10 +142,10 @@ else
   rm -f "$IMG_GZ" "$IMG"
 
   echo "正在下载镜像..."
-  wget --no-verbose --show-progress -O "$IMG_GZ" "$IMG_URL"
+  wget --no-verbose --show-progress -O "$IMG_GZ" "$IMG_URL" || { echo "[✘] 镜像下载失败，请检查网络连接或镜像地址"; exit 1; }
 
   echo "正在解压镜像..."
-  gzip -df "$IMG_GZ"
+  gzip -df "$IMG_GZ" || { echo "[✘] 解压失败，请检查下载的镜像文件"; exit 1; }
 
   echo "清理旧虚拟机配置 (ID: $VM_ID)..."
   qm destroy $VM_ID --purge >/dev/null 2>&1 || true
