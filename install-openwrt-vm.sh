@@ -3,7 +3,7 @@
 VM_ID=1002
 VM_NAME="openwrt-vm"
 OPENWRT_VERSION="24.10.1"
-STORAGE="local-lvm"
+STORAGE="local"
 BRIDGE="vmbr0"
 MEMORY="4096"
 CPUS="2"
