@@ -4,7 +4,7 @@
 # Description: 一键安装 OpenWrt / ImmortalWrt 到 Proxmox VE（支持 LXC 和 VM）
 # Author: EnjoyGoGoal
 # Created: 2025-06-18
-# Version: 1.1
+# Version: 1.2
 # License: MIT
 # GitHub: https://github.com/EnjoyGoGoal
 # =============================================================================
@@ -35,7 +35,7 @@ get_latest_version() {
   local base_url
   [[ "$1" == "openwrt" ]] && base_url="https://downloads.openwrt.org/releases/"
   [[ "$1" == "immortalwrt" ]] && base_url="https://downloads.immortalwrt.org/releases/"
-  curl -s "$base_url" | grep -oP '\\d+\\.\\d+\\.\\d+(?=/)' | sort -Vr | head -n 1
+  curl -s "$base_url" | grep -oP '\d+\.\d+\.\d+(?=/)' | sort -Vr | head -n 1
 }
 VERSION=$(get_latest_version "$OS_TYPE")
 echo "[✔] 最新版本为：$VERSION"
@@ -60,7 +60,7 @@ STORES=$(pvesm status -content images | awk 'NR>1 {print $1}')
 select STORAGE in $STORES "手动输入"; do
   [[ "$STORAGE" == "手动输入" ]] && read -p "请输入存储名称: " STORAGE
   [[ -n "$STORAGE" ]] && break
-done
+  done
 
 # ===== 创建 LXC 容器 =====
 if [[ "$CREATE_TYPE" == "LXC" ]]; then
@@ -98,7 +98,7 @@ if [[ "$CREATE_TYPE" == "LXC" ]]; then
   pct start $LXC_ID
   pct set $LXC_ID --onboot 1
   sleep 5
-  IP=$(pct exec $LXC_ID -- ip -4 addr show eth0 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}')
+  IP=$(pct exec $LXC_ID -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
   echo "[✔] LXC 容器安装完成：ID=$LXC_ID, IP=$IP"
 
 # ===== 创建虚拟机 VM =====
@@ -136,8 +136,8 @@ else
   cd /tmp
   IMG="${OS_TYPE}-${VERSION}-x86-64-generic-ext4-combined.img"
   IMG_GZ="${IMG}.gz"
-  BASE_DOMAIN="$( [[ "$OS_TYPE" == "openwrt" ]] && echo "openwrt" || echo "immortalwrt" )"
-  IMG_URL="https://downloads.${BASE_DOMAIN}.org/releases/${VERSION}/targets/x86/64/${IMG_GZ}"
+  BASE_DOMAIN="$( [[ "$OS_TYPE" == "openwrt" ]] && echo "downloads.openwrt" || echo "downloads.immortalwrt" )"
+  IMG_URL="https://${BASE_DOMAIN}.org/releases/${VERSION}/targets/x86/64/${IMG_GZ}"
 
   echo "清理旧文件..."
   rm -f "$IMG_GZ" "$IMG"
