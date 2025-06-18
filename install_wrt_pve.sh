@@ -159,7 +159,7 @@ else
   qm set $VM_ID --sata0 $STORAGE:$VM_ID/$DISK_NAME
   qm resize $VM_ID sata0 $DISK_SIZE
   qm set $VM_ID --boot order=sata0
-  qm set $VM_ID --serial0 socket --vga serial0
+  qm set $VM_ID --serial0 socket
   qm set $VM_ID --onboot 1
   qm start $VM_ID
 
