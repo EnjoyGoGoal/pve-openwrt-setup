@@ -104,7 +104,6 @@ if [[ "$CREATE_TYPE" == "LXC" ]]; then
     exit 1
   fi
 
-  # ===== 容器名称与 VM 名称保持一致 =====
   LXC_NAME="${OS_TYPE}-${VERSION}"
 
   echo "[*] 创建 LXC 容器..."
@@ -167,7 +166,7 @@ else
   qm set $VM_ID --sata0 $STORAGE:$VM_ID/$DISK_NAME
   qm resize $VM_ID sata0 $DISK_SIZE
   qm set $VM_ID --boot order=sata0
-  qm set $VM_ID --serial0 socket
+  qm set $VM_ID --serial0 socket --vga serial0
   qm set $VM_ID --onboot 1
   qm start $VM_ID
 
