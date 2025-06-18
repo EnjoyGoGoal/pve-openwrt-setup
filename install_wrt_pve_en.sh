@@ -172,27 +172,5 @@ else
   qm config $VM_ID | grep -E "machine:|scsihw:|cpu:|sata0:|vga:|boot:|description:"
 
   # ===== OpenClash Installation Note =====
-  cat << 'EOF' > /root/openclash-install.txt
 
-opkg update
-opkg install curl bash unzip iptables ipset coreutils coreutils-nohup luci luci-compat dnsmasq-full
-
-cd /tmp
-wget https://github.com/vernesong/OpenClash/releases/download/v0.45.128-beta/luci-app-openclash_0.45.128-beta_all.ipk
-opkg install ./luci-app-openclash_0.45.128-beta_all.ipk
-
-mkdir -p /etc/openclash
-curl -Lo /etc/openclash/clash.tar.gz https://cdn.jsdelivr.net/gh/vernesong/OpenClash@master/core/clash-linux-amd64.tar.gz
-tar -xzf /etc/openclash/clash.tar.gz -C /etc/openclash && rm /etc/openclash/clash.tar.gz
-
-/etc/init.d/openclash enable
-/etc/init.d/openclash start
-
-opkg install parted
-parted /dev/sda resizepart 2 100%
-resize2fs /dev/sda2
-
-EOF
-
-  echo "[✔] OpenClash install instructions saved to: /root/openclash-install.txt"
 fi
