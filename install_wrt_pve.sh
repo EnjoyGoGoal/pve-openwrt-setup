@@ -52,37 +52,20 @@ select BRIDGE in $AVAILABLE_BRIDGES "手动输入"; do
   break
 done
 
-# ===== 存储选择 =====
-echo "请选择存储位置（例如 local、local-lvm）："
-
-# 强制加入默认选项
-AVAILABLE_STORES=$(pvesm status -content images | awk 'NR>1 {print $1}' | sort -u | uniq)
-STORES_SET=($(echo -e "local\nlocal-lvm\n$AVAILABLE_STORES" | sort -u))
-STORE_OPTIONS=("${STORES_SET[@]}" "手动输入")
-DEFAULT_STORAGE="local"
-
-# 打印存储选项
-i=1
-for opt in "${STORE_OPTIONS[@]}"; do
-  echo "$i) $opt"
-  ((i++))
+# ===== 选择存储位置 =====
+echo "请选择存储位置："
+STORES=$(pvesm status -content images | awk 'NR>1 {print $1}')
+select STORAGE in $STORES "手动输入"; do
+  [[ "$STORAGE" == "手动输入" ]] && read -p "请输入存储名称: " STORAGE
+  [[ -n "$STORAGE" ]] && break
 done
 
-read -p "请输入数字选择（默认 ${DEFAULT_STORAGE}）: " store_index
-
-if [[ -z "$store_index" ]]; then
-  STORAGE="$DEFAULT_STORAGE"
-elif [[ "$store_index" =~ ^[0-9]+$ ]] && (( store_index >= 1 && store_index <= ${#STORE_OPTIONS[@]} )); then
-  STORAGE="${STORE_OPTIONS[$((store_index - 1))]}"
-  if [[ "$STORAGE" == "手动输入" ]]; then
-    read -p "请输入存储名称: " STORAGE
+# ===== 创建 LXC 容器 =====
+if [[ "$CREATE_TYPE" == "LXC" ]]; then
+  if pct status $LXC_ID &>/dev/null; then
+    echo "[!] LXC ID $LXC_ID 已存在，请手动处理或更换 ID"
+    exit 1
   fi
-else
-  echo "[!] 无效输入，使用默认：${DEFAULT_STORAGE}"
-  STORAGE="$DEFAULT_STORAGE"
-fi
-
-echo "[✔] 使用存储：$STORAGE"
 
 # ===== 获取 VM ID =====
 get_vm_id() {
