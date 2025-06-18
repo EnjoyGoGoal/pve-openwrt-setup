@@ -95,14 +95,21 @@ if [[ "$CREATE_TYPE" == "LXC" ]]; then
     wget -O "$LOCAL_FILE" "$DL_URL" || { echo "[✘] 下载失败"; exit 1; }
   fi
 
+  # 手动输入 LXC ID，默认值为 1001
+  read -p "请输入 LXC ID（默认 1001）： " LXC_ID
+  LXC_ID=${LXC_ID:-1001}
+
   if pct status $LXC_ID &>/dev/null; then
     echo "[!] LXC ID $LXC_ID 已存在，请手动处理或更换 ID"
     exit 1
   fi
 
+  # 容器名称与虚拟机名称一致
+  LXC_NAME="${OS_TYPE}-${VERSION}"
+  
   echo "[*] 创建 LXC 容器..."
   pct create $LXC_ID "$LOCAL_FILE" \
-    --hostname "${OS_TYPE}-lxc" \
+    --hostname "$LXC_NAME" \
     --cores $CPUS \
     --memory $MEMORY \
     --swap 0 \
@@ -118,6 +125,7 @@ if [[ "$CREATE_TYPE" == "LXC" ]]; then
   sleep 5
   IP=$(pct exec $LXC_ID -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || true)
   echo "[✔] LXC 容器安装完成：ID=$LXC_ID, IP=${IP:-获取失败}"
+fi
 
 # ===== 创建虚拟机 VM =====
 else
