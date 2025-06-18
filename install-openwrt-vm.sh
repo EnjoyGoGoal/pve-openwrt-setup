@@ -11,18 +11,38 @@ DISK_SIZE="2G"  # 设置所需的磁盘大小
 
 cd /tmp
 IMG="openwrt-${OPENWRT_VERSION}-x86-64-generic-ext4-combined.img"
-IMG_URL="https://downloads.openwrt.org/releases/${OPENWRT_VERSION}/targets/x86/64/${IMG}.gz"
-wget -O ${IMG}.gz ${IMG_URL}
-gunzip ${IMG}.gz
+IMG_GZ="${IMG}.gz"
+IMG_URL="https://downloads.openwrt.org/releases/${OPENWRT_VERSION}/targets/x86/64/${IMG_GZ}"
+
+# 清理旧文件（如果存在）
+if [ -f "$IMG_GZ" ]; then
+    echo "发现已存在的压缩文件 $IMG_GZ，正在删除..."
+    rm -f "$IMG_GZ"
+fi
+
+if [ -f "$IMG" ]; then
+    echo "发现已存在的镜像文件 $IMG，正在删除..."
+    rm -f "$IMG"
+fi
+
+# 下载镜像
+echo "正在下载 OpenWrt 镜像..."
+wget -O "$IMG_GZ" "$IMG_URL"
+
+# 解压镜像（自动替换已存在文件）
+echo "正在解压镜像..."
+gunzip -f "$IMG_GZ"  # -f 选项强制覆盖已存在的文件
 
 # 确保虚拟机不存在
 qm destroy $VM_ID --purge >/dev/null 2>&1
 
-# 创建虚拟机（仅基本配置）
-qm create $VM_ID --name $VM_NAME -machine q35 --memory $MEMORY --cores $CPUS --net0 virtio,bridge=$BRIDGE
+# 创建虚拟机（使用q35机型）
+qm create $VM_ID --name $VM_NAME --machine q35 --memory $MEMORY --cores $CPUS \
+    --net0 virtio,bridge=$BRIDGE \
+    --scsihw virtio-scsi-single  # 使用VirtIO SCSI single控制器
 
 # 导入磁盘到存储
-qm importdisk $VM_ID $IMG $STORAGE --format qcow2
+qm importdisk $VM_ID "$IMG" $STORAGE --format qcow2
 
 # 获取实际创建的磁盘名称
 DISK_NAME=$(ls /var/lib/vz/images/$VM_ID/ | grep vm-$VM_ID-disk | head -n 1)
@@ -39,18 +59,18 @@ qm resize $VM_ID sata0 $DISK_SIZE
 
 # 设置启动顺序和其他参数
 qm set $VM_ID --boot order=sata0
-qm set $VM_ID --serial0 socket --vga serial0
+qm set $VM_ID --serial0 socket --vga serial0  # 使用串口控制台
 
 # 启动虚拟机
 qm start $VM_ID
 
 echo "[✔] OpenWrt ${OPENWRT_VERSION} VM 创建完成"
+echo "[✔] 使用配置: q35机型, VirtIO SCSI控制器, SATA磁盘接口"
 echo "[✔] 磁盘大小已调整为 $DISK_SIZE"
 
-# 验证磁盘大小
-echo "验证磁盘大小:"
-qm config $VM_ID | grep sata0
-qemu-img info /var/lib/vz/images/$VM_ID/$DISK_NAME | grep "virtual size"
+# 验证配置
+echo "验证虚拟机配置:"
+qm config $VM_ID | grep -E "machine:|scsihw:|sata0:|vga:|boot:"
 
 # 自动安装 OpenClash（首次进入系统后执行）
 cat << EOF
@@ -70,5 +90,11 @@ tar -xzf /etc/openclash/clash.tar.gz -C /etc/openclash && rm /etc/openclash/clas
 
 /etc/init.d/openclash enable
 /etc/init.d/openclash start
+
+# 扩展分区以使用全部磁盘空间
+echo "扩展分区以使用全部磁盘空间:"
+opkg install parted
+parted /dev/sda resizepart 2 100%
+resize2fs /dev/sda2
 
 EOF
