@@ -28,8 +28,12 @@ ping -c 1 -W 2 1.1.1.1 &>/dev/null || { echo "[✘] 无法连接互联网，请�
 # ===== 默认系统选择 =====
 OS_TYPE="openwrt"
 echo "[✔] 默认系统选择: $OS_TYPE"
-echo "是否更改系统选择? (默认选择: openwrt)"
-select OS_TYPE in "openwrt" "immortalwrt"; do [[ -n "$OS_TYPE" ]] && break; done
+echo "请选择系统类型（默认 openwrt）:"
+select OS_TYPE in "openwrt" "immortalwrt"; do
+  if [[ -n "$OS_TYPE" ]]; then
+    break
+  fi
+done
 
 # ===== 获取最新版本 =====
 get_latest_version() {
@@ -44,24 +48,35 @@ echo "[✔] 最新版本为：$VERSION"
 # ===== 类型选择 =====
 CREATE_TYPE="LXC"
 echo "[✔] 默认创建类型: LXC"
-echo "是否更改创建类型? (默认选择: LXC)"
-select CREATE_TYPE in "LXC" "VM"; do [[ -n "$CREATE_TYPE" ]] && break; done
+echo "请选择创建类型（默认 LXC）:"
+select CREATE_TYPE in "LXC" "VM"; do
+  if [[ -n "$CREATE_TYPE" ]]; then
+    break
+  fi
+done
 
 # ===== 网桥选择 =====
-echo "请选择桥接网卡（默认 vmbr0）："
+echo "请选择桥接网卡（默认 vmbr0）:"
 AVAILABLE_BRIDGES=$(grep -o '^auto .*' /etc/network/interfaces | awk '{print $2}')
 select BRIDGE in $AVAILABLE_BRIDGES "手动输入"; do
-  [[ "$BRIDGE" == "手动输入" ]] && read -p "请输入网桥名称: " BRIDGE
-  [[ -z "$BRIDGE" ]] && BRIDGE="$DEFAULT_BRIDGE"
+  if [[ "$BRIDGE" == "手动输入" ]]; then
+    read -p "请输入网桥名称: " BRIDGE
+  fi
+  BRIDGE="${BRIDGE:-$DEFAULT_BRIDGE}"
+  echo "[✔] 使用网桥: $BRIDGE"
   break
 done
 
 # ===== 存储池选择 =====
+STORAGE="local"
 echo "请选择存储池（默认 local）："
 select STORAGE in "local" "local-lvm" "其他"; do
-  [[ -n "$STORAGE" ]] && break
+  if [[ -n "$STORAGE" ]]; then
+    break
+  fi
 done
 STORAGE="${STORAGE:-$DEFAULT_STORAGE}"
+echo "[✔] 使用存储池: $STORAGE"
 
 # ===== 获取 LXC ID =====
 if pct status $LXC_ID &>/dev/null; then
