@@ -155,7 +155,7 @@ else
     --cpu host --description "$VM_DESC"
 
   echo "[*] 导入磁盘..."
-  qm importdisk $VM_ID "$IMG" $STORAGE --format qcow2
+  qm importdisk $VM_ID "$IMG" $STORAGE:$ROOTFS_SIZE --format qcow2
   DISK_NAME=$(ls /var/lib/pve/images/$VM_ID/ | grep vm-$VM_ID-disk | head -n 1)
   [[ -z "$DISK_NAME" ]] && DISK_NAME="vm-$VM_ID-disk-0.qcow2"
 
@@ -173,28 +173,4 @@ else
   echo "[*] 验证 VM 配置:"
   qm config $VM_ID | grep -E "machine:|scsihw:|cpu:|sata0:|vga:|boot:|description:"
 
-  # OpenClash 安装脚本说明
-  cat << 'EOF' > /root/openclash-install.txt
-
-opkg update
-opkg install curl bash unzip iptables ipset coreutils coreutils-nohup luci luci-compat dnsmasq-full
-
-cd /tmp
-wget https://github.com/vernesong/OpenClash/releases/download/v0.45.128-beta/luci-app-openclash_0.45.128-beta_all.ipk
-opkg install ./luci-app-openclash_0.45.128-beta_all.ipk
-
-mkdir -p /etc/openclash
-curl -Lo /etc/openclash/clash.tar.gz https://cdn.jsdelivr.net/gh/vernesong/OpenClash@master/core/clash-linux-amd64.tar.gz
-tar -xzf /etc/openclash/clash.tar.gz -C /etc/openclash && rm /etc/openclash/clash.tar.gz
-
-/etc/init.d/openclash enable
-/etc/init.d/openclash start
-
-opkg install parted
-parted /dev/sda resizepart 2 100%
-resize2fs /dev/sda2
-
-EOF
-
-  echo "[✔] OpenClash 安装说明已保存到：/root/openclash-install.txt"
 fi
