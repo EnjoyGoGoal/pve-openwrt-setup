@@ -7,7 +7,7 @@ STORAGE="local"
 BRIDGE="vmbr0"
 MEMORY="4096"
 CPUS="2"
-DISK="2"
+DISK_SIZE="2G"  # 修改为带单位的磁盘大小
 
 cd /tmp
 IMG="openwrt-${OPENWRT_VERSION}-x86-64-generic-ext4-combined.img"
@@ -15,10 +15,19 @@ IMG_URL="https://downloads.openwrt.org/releases/${OPENWRT_VERSION}/targets/x86/6
 wget -O ${IMG}.gz ${IMG_URL}
 gunzip ${IMG}.gz
 
-qm create $VM_ID --name $VM_NAME --memory $MEMORY --cores $CPUS --net0 virtio,bridge=$BRIDGE
-qm importdisk $VM_ID $IMG $STORAGE
-qm set $VM_ID --sata0 $STORAGE:vm-${VM_ID}-disk-0  # 修改为SATA接口
-qm set $VM_ID --boot order=sata0                  # 启动顺序改为sata0
+# 创建虚拟机时直接添加磁盘
+qm create $VM_ID --name $VM_NAME --memory $MEMORY --cores $CPUS \
+    --net0 virtio,bridge=$BRIDGE \
+    --sata0 $STORAGE:$DISK_SIZE  # 创建时直接添加SATA磁盘
+
+# 导入磁盘到现有磁盘位置
+qm importdisk $VM_ID $IMG $STORAGE -format qcow2
+
+# 附加导入的磁盘到SATA接口
+qm set $VM_ID --sata0 $STORAGE:vm-${VM_ID}-disk-0
+
+# 设置启动顺序和其他参数
+qm set $VM_ID --boot order=sata0
 qm set $VM_ID --serial0 socket --vga serial0
 qm start $VM_ID
 
