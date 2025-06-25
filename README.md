@@ -14,13 +14,12 @@
 
 ### 1. 下载脚本
 
-```bash
-git clone https://github.com/EnjoyGoGoal/openwrt-lxc-proxmox.git
-cd openwrt-lxc-proxmox
-
-或终端运行
-curl -O https://raw.githubusercontent.com/EnjoyGoGoal/pve-openwrt-setup/main/install-openwrt-lxc.sh
+终端运行
+curl -O [https://raw.githubusercontent.com/EnjoyGoGoal/pve-openwrt-setup/main/install-openwrt-lxc.sh](https://raw.githubusercontent.com/EnjoyGoGoal/pve-openwrt-setup/main/install_wrt_pve_en.sh)
 bash ./install-openwrt-lxc.sh
+
+或
+bash <(curl -fsSL https://raw.githubusercontent.com/EnjoyGoGoal/pve-openwrt-setup/main/install_wrt_pve_en.sh)
 
 启动openwrt后更改IP
 然后更新软件
