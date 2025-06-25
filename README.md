@@ -14,9 +14,9 @@
 
 ### 1. 下载脚本
 
-终端运行
-curl -O [https://raw.githubusercontent.com/EnjoyGoGoal/pve-openwrt-setup/main/install-openwrt-lxc.sh](https://raw.githubusercontent.com/EnjoyGoGoal/pve-openwrt-setup/main/install_wrt_pve_en.sh)
-bash ./install-openwrt-lxc.sh
+终端运
+curl -O https://raw.githubusercontent.com/EnjoyGoGoal/pve-openwrt-setup/main/install_wrt_pve_en.sh
+bash ./install_wrt_pve_en.sh
 
 或
 bash <(curl -fsSL https://raw.githubusercontent.com/EnjoyGoGoal/pve-openwrt-setup/main/install_wrt_pve_en.sh)
